@@ -10,8 +10,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX_SFX"
-#define	__IDENT__	"X-01-00"
-#define	__REV__		"01.00.00"
+#define	__IDENT__	"X-01-00ECO01"
+#define	__REV__		"01.00.01"
 
 /*
 **++
@@ -48,6 +48,9 @@
 **				being built in (DX_V29.BCK, Fixed 32256), the
 **				payload is checked by CRC-32 before it is
 **				written, CLI qualifiers /OUTPUT, /LIST, /VERIFY.
+**
+**	26-SEP-2026	CLD	X-01-00ECO01: OPENIN/OPENOUT show the RMS STV
+**				(yadcx$putmsg_rms).
 **--
 */
 
@@ -95,7 +98,7 @@ YADCX$FILE	l_out;
 	else	l_sts = yadcx$create(&l_out, l_defname, a_hdr->namelen, 0, a_hdr->blocks);
 
 	if ( !(1 & l_sts) )
-		return	yadcx$putmsg(YADCX$_OPENOUT, l_sts, 1, *a_out ? a_out : l_defname);
+		return	yadcx$putmsg_rms(YADCX$_OPENOUT, &l_out, *a_out ? a_out : l_defname);
 
 	for (uint32_t l_done = 0; l_done < a_hdr->blocks; l_done += l_n)
 		{
@@ -174,7 +177,7 @@ YADCX$HDR	l_hdr;
 		sys$exit(yadcx$putmsg(YADCX$_SYSERR, l_sts, 1, "$GETJPIW JPI$_IMAGNAME") | STS$M_INHIB_MSG);
 
 	if ( !(1 & (l_sts = yadcx$open(&l_kit, l_self, l_selflen, 0))) )
-		sys$exit(yadcx$putmsg(YADCX$_OPENIN, l_sts, 1, l_self) | STS$M_INHIB_MSG);
+		sys$exit(yadcx$putmsg_rms(YADCX$_OPENIN, &l_kit, l_self) | STS$M_INHIB_MSG);
 
 	/*
 	**  The header: marker, own CRC, version

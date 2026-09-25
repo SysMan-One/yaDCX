@@ -10,8 +10,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX"
-#define	__IDENT__	"X-01-00"
-#define	__REV__		"01.00.00"
+#define	__IDENT__	"X-01-00ECO01"
+#define	__REV__		"01.00.01"
 
 /*
 **++
@@ -42,6 +42,9 @@
 **
 **	26-SEP-2026	CLD	X-01-00: initial version, replaces MKCAT.C of
 **				[LAISHEV.YADX_KIT].
+**
+**	26-SEP-2026	CLD	X-01-00ECO01: OPENIN/OPENOUT show the RMS STV
+**				(yadcx$putmsg_rms).
 **--
 */
 
@@ -105,7 +108,7 @@ YADCX$FILE	l_kit;
 YADCX$HDR	l_hdr;
 
 	if ( !(1 & (l_sts = yadcx$open(&l_kit, a_name, (int) strlen(a_name), ".EXE"))) )
-		return	yadcx$putmsg(YADCX$_OPENIN, l_sts, 1, a_name);
+		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_kit, a_name);
 
 	if ( !(1 & (l_sts = yadcx$find_hdr(&l_kit, &l_vbn, &l_hdr))) )
 		{
@@ -269,7 +272,7 @@ YADCX$HDR	l_hdr, l_shdr;
 	**  The payload: its size and its record attributes
 	*/
 	if ( !(1 & (l_sts = yadcx$open(&l_pay, a_payload, (int) strlen(a_payload), 0))) )
-		return	yadcx$putmsg(YADCX$_OPENIN, l_sts, 1, a_payload);
+		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_pay, a_payload);
 
 	if ( !l_pay.bytes )
 		return	yadcx$putmsg(YADCX$_EMPTY, 0, 1, l_pay.rsa);
@@ -311,7 +314,7 @@ YADCX$HDR	l_hdr, l_shdr;
 		}
 
 	if ( !(1 & l_sts) )
-		return	yadcx$putmsg(YADCX$_OPENIN, l_sts, 1, *a_stub ? a_stub : "YADCX_SFX.EXE");
+		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_stub, *a_stub ? a_stub : "YADCX_SFX.EXE");
 
 	l_sts = yadcx$find_hdr(&l_stub, &l_vbn, &l_shdr);
 	if ( 1 & l_sts || l_sts == YADCX$_BADHDR || l_sts == YADCX$_BADVER )
@@ -331,7 +334,7 @@ YADCX$HDR	l_hdr, l_shdr;
 	strcpy(l_dna + l_pay.nam.nam$b_name, ".EXE");
 
 	if ( !(1 & (l_sts = yadcx$create(&l_kit, a_output, (int) strlen(a_output), l_dna, l_s + 1 + l_p))) )
-		return	yadcx$putmsg(YADCX$_OPENOUT, l_sts, 1, *a_output ? a_output : l_dna);
+		return	yadcx$putmsg_rms(YADCX$_OPENOUT, &l_kit, *a_output ? a_output : l_dna);
 
 	if ( !(1 & (l_sts = s_copy(&l_stub, &l_kit, 1, 1, l_s, 0, 0, &l_rd))) )
 		{

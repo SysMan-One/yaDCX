@@ -19,8 +19,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX_COMMON"
-#define	__IDENT__	"X-01-00"
-#define	__REV__		"01.00.00"
+#define	__IDENT__	"X-01-00ECO01"
+#define	__REV__		"01.00.01"
 
 /*
 **++
@@ -44,6 +44,9 @@
 **  MODIFICATION HISTORY:
 **
 **	26-SEP-2026	CLD	X-01-00: initial version.
+**
+**	26-SEP-2026	CLD	X-01-00ECO01: yadcx$putmsg_rms() - a failed
+**				$OPEN/$CREATE shows its STS and STV.
 **--
 */
 
@@ -125,6 +128,46 @@ va_list		l_ap;
 		}
 
 	l_vec[0] = l_idx - 1;
+	sys$putmsg((void *) l_vec, 0, 0, 0);
+
+	return	a_msg;
+}
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	Output a YADCX message about a failed $OPEN/$CREATE, followed by the
+**	RMS status and its STV, so the real reason (NOPRIV, device full ...)
+**	shows as a third line, the way DCL utilities do it.
+**
+**  INPUTS:
+**
+**	a_msg	-	YADCX$_OPENIN or YADCX$_OPENOUT
+**	a_file	-	the file context of the failed call, its FAB holds
+**			the STS and STV
+**	a_arg	-	file name for the !AZ of the message, .ASCIZ
+**
+**  RETURNS:
+**
+**	a_msg
+**--
+*/
+unsigned int	yadcx$putmsg_rms	(
+		unsigned int	a_msg,
+		YADCX$FILE	*a_file,
+		char		*a_arg
+			)
+{
+uint32_t	l_vec[6];
+
+	l_vec[0] = 5;
+	l_vec[1] = a_msg;
+	l_vec[2] = 1;
+	l_vec[3] = (uint32_t) a_arg;
+	l_vec[4] = a_file->fab.fab$l_sts;
+	l_vec[5] = a_file->fab.fab$l_stv;
 	sys$putmsg((void *) l_vec, 0, 0, 0);
 
 	return	a_msg;

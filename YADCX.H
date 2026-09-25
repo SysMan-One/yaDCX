@@ -2,8 +2,8 @@
 #define	__YADCX_H__	1
 
 #define	__MODULE__	"YADCX.H"
-#define	__IDENT__	"X-01-00"
-#define	__REV__		"01.00.00"
+#define	__IDENT__	"X-01-00ECO01"
+#define	__REV__		"01.00.01"
 
 /*
 **++
@@ -43,6 +43,8 @@
 **
 **	26-SEP-2026	CLD	X-01-00: initial version, replaces the DX-only
 **				SFX.C/MKCAT.C pair of [LAISHEV.YADX_KIT].
+**
+**	26-SEP-2026	CLD	X-01-00ECO01: yadcx$putmsg_rms(), yadcx$fmt_uq().
 **--
 */
 
@@ -133,6 +135,7 @@ globalvalue unsigned int
 **  Shared routines, YADCX_COMMON.C
 */
 unsigned int	yadcx$putmsg	(unsigned int a_msg, unsigned int a_sts, int a_nfao, ...);
+unsigned int	yadcx$putmsg_rms (unsigned int a_msg, YADCX$FILE *a_file, char *a_arg);
 void		yadcx$marker	(char *a_marker);
 void		yadcx$crc_init	(void);
 void		yadcx$crc	(uint32_t *a_crc, void *a_buf, uint32_t a_len);

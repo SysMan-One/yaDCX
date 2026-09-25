@@ -2,7 +2,7 @@
 
 *Русский текст — ниже, после английского.*
 
-Version X-01-00 (01.00.00). Authors: StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan).
+Version X-01-00ECO01 (01.00.01). Authors: StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan).
 
 ## What it is
 

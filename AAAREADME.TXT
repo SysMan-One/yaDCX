@@ -1,8 +1,8 @@
 AAAREADME.TXT -- yaDCX, self-extracting kits for OpenVMS
 
 __MODULE__  AAAREADME
-__IDENT__   X-01-00
-__REV__     01.00.00
+__IDENT__   X-01-00ECO01
+__REV__     01.00.01
 
 (The text is UTF-8: the Russian part needs a UTF-8 terminal, or read it
 in README.md on the git side.)
@@ -12,7 +12,7 @@ YADCX -- SELF-EXTRACTING KITS FOR OPENVMS
 
 Русский текст -- ниже, после английского.
 
-Version X-01-00 (01.00.00). Authors: StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan).
+Version X-01-00ECO01 (01.00.01). Authors: StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan).
 
 What it is
 ----------

@@ -1,0 +1,5 @@
+.codegraph/
+HANDOFF-*.md
+*.OBJ
+*.EXE
+*.LIS

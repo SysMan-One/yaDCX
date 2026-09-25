@@ -1,0 +1,48 @@
+!
+!  YADCX_CLI.CLD -- command syntax of the yaDCX builder and of its stub
+!
+!  __MODULE__	YADCX_CLI
+!  __IDENT__	X-01-00
+!  __REV__	01.00.00
+!
+!  AUTHORS:	StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
+!
+!  MODIFICATION HISTORY:
+!
+!	26-SEP-2026	CLD	X-01-00: initial version.
+!
+!  Compiled with SET COMMAND/OBJECT and linked into both images; each image
+!  gets its command line with LIB$GET_FOREIGN, puts its verb in front and
+!  parses it with CLI$DCL_PARSE against this table (the DX way), so both
+!  work as plain foreign commands, no DCLTABLES change is needed.
+!
+!  CLI tells verbs apart by their first four characters only, so the two
+!  verbs must differ there: YADCX_SFX would be YADC as well and replace
+!  YADCX.  The stub's verb is SFX.
+!
+Module YADCX_CLI
+Ident "X-01-00"
+
+!
+!  YADCX saveset /OUTPUT=kit /STUB=stub /NAME=name.type	- build a kit
+!  YADCX/LIST kit					- show and check a kit
+!
+Define Verb YADCX
+	Parameter P1, Label=FILE, Prompt="File", Value (Required, Type=$INFILE)
+	Qualifier OUTPUT,	Nonnegatable, Value (Required, Type=$OUTFILE)
+	Qualifier STUB,		Nonnegatable, Value (Required, Type=$INFILE)
+	Qualifier NAME,		Nonnegatable, Value (Required)
+	Qualifier LIST,		Nonnegatable
+	Disallow LIST and (OUTPUT or STUB or NAME)
+
+!
+!  kit						- restore the payload
+!  kit /OUTPUT=file				- restore it under another name/place
+!  kit /LIST					- show what is inside
+!  kit /VERIFY					- check the CRC, write nothing
+!
+Define Verb SFX
+	Qualifier OUTPUT,	Nonnegatable, Value (Required, Type=$OUTFILE)
+	Qualifier LIST,		Nonnegatable
+	Qualifier VERIFY,	Nonnegatable
+	Disallow OUTPUT and (LIST or VERIFY)

@@ -75,6 +75,12 @@ Files
         the demo, see "Example session"
   ATTR.COM
         prints the RMS attributes of a file in one line (used by the demo)
+  tools/mk_aaareadme.py
+        makes AAAREADME.TXT from README.md
+  CONTRIBUTING.md
+        code style and rules for contributors (English + Russian)
+  AGENTS.md, CLAUDE.md
+        the same rules, short, for AI coding agents
   AAAREADME.TXT
         this guide, for VMS users
   tools/yadcx_check.py

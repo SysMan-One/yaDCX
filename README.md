@@ -48,6 +48,9 @@ EDB88320), so you can check a kit on Linux too.
 | `YADCX.COM` | defines the `YADCX` command |
 | `YADCX_DEMO.COM` | the demo, see "Example session" |
 | `ATTR.COM` | prints the RMS attributes of a file in one line (used by the demo) |
+| `tools/mk_aaareadme.py` | makes `AAAREADME.TXT` from `README.md` |
+| `CONTRIBUTING.md` | code style and rules for contributors (English + Russian) |
+| `AGENTS.md`, `CLAUDE.md` | the same rules, short, for AI coding agents |
 | `AAAREADME.TXT` | this guide, for VMS users |
 | `tools/yadcx_check.py` | checks kits on Linux (or anywhere with Python 3) |
 

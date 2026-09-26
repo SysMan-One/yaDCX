@@ -55,6 +55,8 @@ Names
 
 Behaviour
 - Routines return a status; results through output parameters. Check every status on its low bit.
+- Strings only as descriptors (`struct dsc$descriptor_s`): no `.ASCIZ`, no `strlen`/`strcpy`/`strchr` on text,
+  no `'\0'`; literals `static $DESCRIPTOR(...)`, buffers `$DSCINIT(dsc, buf, len)`; messages use `!AS`, never `!AZ`.
 - No C RTL file I/O and no `printf`: RMS (`FAB$M_UFO`) + `$QIOW` block I/O, ACP for attributes.
 - All output through `$PUTMSG` with codes from `YADCX_MSG.MSG` (`yadcx$putmsg`, `yadcx$putmsg_rms`);
   always pass the real underlying status; exit with `sys$exit(code | STS$M_INHIB_MSG)`.

@@ -3,8 +3,8 @@
 #  mk_aaareadme.py -- make AAAREADME.TXT (plain text for VMS) from README.md
 #
 #  __MODULE__	YADCX_MK_AAAREADME
-#  __IDENT__	X-01-00ECO02
-#  __REV__	01.00.02
+#  __IDENT__	X-01-01
+#  __REV__	01.01.00
 #
 #  AUTHORS:	StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 #
@@ -12,6 +12,7 @@
 #
 #	26-SEP-2026	CLD	X-01-00ECO01: initial version.
 #	26-SEP-2026	CLD	X-01-00ECO02: header of AAAREADME.TXT for ECO02.
+#	26-SEP-2026	CLD	X-01-01: header of AAAREADME.TXT for X-01-01.
 #
 #  Usage:	python3 tools/mk_aaareadme.py		(from the top directory)
 #
@@ -43,8 +44,8 @@ txt=txt.replace('—','--').replace('«','"').replace('»','"')
 hdr="""AAAREADME.TXT -- yaDCX, self-extracting kits for OpenVMS
 
 __MODULE__  AAAREADME
-__IDENT__   X-01-00ECO02
-__REV__     01.00.02
+__IDENT__   X-01-01
+__REV__     01.01.00
 
 AUTHORS:    StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 
@@ -54,6 +55,7 @@ MODIFICATION HISTORY:
     26-SEP-2026  CLD  X-01-00ECO01: example session (YADCX_DEMO.COM), ACTIMAGE,
                       yadcx_check.py.
     26-SEP-2026  CLD  X-01-00ECO02: CONTRIBUTING.md, AGENTS.md, mk_aaareadme.py.
+    26-SEP-2026  CLD  X-01-01: strings by descriptor (no .ASCIZ) in the code.
 
 Made from README.md.  The text is UTF-8: the Russian part needs a UTF-8
 terminal, or read README.md on the git side.

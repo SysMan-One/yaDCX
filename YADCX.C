@@ -6,12 +6,13 @@
 #include	<stsdef.h>
 #include	<ssdef.h>
 #include	<starlet.h>
+#include	<str$routines.h>
 
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX"
-#define	__IDENT__	"X-01-00ECO02"
-#define	__REV__		"01.00.02"
+#define	__IDENT__	"X-01-01"
+#define	__REV__		"01.01.00"
 
 /*
 **++
@@ -48,10 +49,24 @@
 **
 **	26-SEP-2026	CLD	X-01-00ECO02: kit release with CONTRIBUTING.md,
 **				AGENTS.md, tools/mk_aaareadme.py; no code change.
+**
+**	26-SEP-2026	CLD	X-01-01: all strings by descriptor, no .ASCIZ/strlen;
+**				/NAME checked with STR$FIND_FIRST_IN_SET.
 **--
 */
 
 static char	s_buf[YADCX$K_IOBLKS * YADCX$K_BLKSZ];	/* Copy buffer					*/
+
+static	$DESCRIPTOR(s_q_verb, "YADCX");			/* Verb in YADCX_CLI.CLD			*/
+static	$DESCRIPTOR(s_q_file, "FILE");
+static	$DESCRIPTOR(s_q_list, "LIST");
+static	$DESCRIPTOR(s_q_output, "OUTPUT");
+static	$DESCRIPTOR(s_q_stub, "STUB");
+static	$DESCRIPTOR(s_q_name, "NAME");
+static	$DESCRIPTOR(s_sfxname, "YADCX_SFX.EXE");		/* The stub, default name			*/
+static	$DESCRIPTOR(s_exe, ".EXE");
+static	$DESCRIPTOR(s_badchars, ":[]<>;");		/* Not allowed in /NAME				*/
+static	$DESCRIPTOR(s_jpi, "$GETJPIW JPI$_IMAGNAME");
 
 
 /*
@@ -80,9 +95,9 @@ static unsigned int	s_hdr_err	(
 	if ( a_sts == YADCX$_BADVER )
 		return	yadcx$putmsg(a_sts, 0, 2, a_hdr->version, YADCX$K_VERSION);
 	if ( a_sts == YADCX$_NOHEADER || a_sts == YADCX$_BADHDR )
-		return	yadcx$putmsg(a_sts, 0, 1, a_file->rsa);
+		return	yadcx$putmsg(a_sts, 0, 1, &a_file->rsadsc);
 
-	return	yadcx$putmsg(YADCX$_READERR, a_sts, 1, a_file->rsa);
+	return	yadcx$putmsg(YADCX$_READERR, a_sts, 1, &a_file->rsadsc);
 }
 
 
@@ -94,7 +109,7 @@ static unsigned int	s_hdr_err	(
 **
 **  INPUTS:
 **
-**	a_name	-	kit file specification, .ASCIZ
+**	a_name	-	kit file specification, descriptor
 **
 **  RETURNS:
 **
@@ -102,7 +117,7 @@ static unsigned int	s_hdr_err	(
 **--
 */
 static unsigned int	s_list	(
-		char		*a_name
+		struct dsc$descriptor_s	*a_name
 			)
 {
 unsigned int	l_sts;
@@ -110,7 +125,7 @@ uint32_t	l_vbn, l_crc;
 YADCX$FILE	l_kit;
 YADCX$HDR	l_hdr;
 
-	if ( !(1 & (l_sts = yadcx$open(&l_kit, a_name, (int) strlen(a_name), ".EXE"))) )
+	if ( !(1 & (l_sts = yadcx$open(&l_kit, a_name, &s_exe))) )
 		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_kit, a_name);
 
 	if ( !(1 & (l_sts = yadcx$find_hdr(&l_kit, &l_vbn, &l_hdr))) )
@@ -129,7 +144,7 @@ YADCX$HDR	l_hdr;
 	if ( l_sts == YADCX$_CRCERR )
 		return	yadcx$putmsg(l_sts, 0, 2, l_hdr.crc, l_crc);
 	if ( !(1 & l_sts) )
-		return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, l_kit.rsa);
+		return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &l_kit.rsadsc);
 
 	return	yadcx$putmsg(YADCX$_VERIFIED, 0, 1, l_crc);
 }
@@ -144,8 +159,7 @@ YADCX$HDR	l_hdr;
 **
 **  INPUTS:
 **
-**	a_name	-	the value
-**	a_len	-	its length
+**	a_name	-	the value, descriptor
 **
 **  RETURNS:
 **
@@ -153,16 +167,14 @@ YADCX$HDR	l_hdr;
 **--
 */
 static unsigned int	s_check_name	(
-		char		*a_name,
-		int		a_len
+		struct dsc$descriptor_s	*a_name
 			)
 {
-	if ( !a_len || a_len > YADCX$K_NAMESZ )
+	if ( !a_name->dsc$w_length || a_name->dsc$w_length > YADCX$K_NAMESZ )
 		return	YADCX$_BADNAME;
 
-	for (int i = 0; i < a_len; i++)
-		if ( strchr(":[]<>;", a_name[i]) )
-			return	YADCX$_BADNAME;
+	if ( str$find_first_in_set(a_name, &s_badchars) )	/* Position of a device/directory/version char	*/
+		return	YADCX$_BADNAME;
 
 	return	SS$_NORMAL;
 }
@@ -245,11 +257,11 @@ uint32_t	l_n, l_len;
 **
 **  INPUTS:
 **
-**	a_payload -	payload file specification, .ASCIZ
-**	a_output -	/OUTPUT value, .ASCIZ, empty - <payload name>.EXE here
-**	a_stub	-	/STUB value, .ASCIZ, empty - YADCX_SFX.EXE from the
+**	a_payload -	payload file specification, descriptor
+**	a_output -	/OUTPUT value, descriptor, empty - <payload name>.EXE here
+**	a_stub	-	/STUB value, descriptor, empty - YADCX_SFX.EXE from the
 **			builder image's directory
-**	a_name	-	/NAME value, .ASCIZ, empty - the payload's name.type
+**	a_name	-	/NAME value, descriptor, empty - the payload's name.type
 **
 **  RETURNS:
 **
@@ -257,31 +269,32 @@ uint32_t	l_n, l_len;
 **--
 */
 static unsigned int	s_build	(
-		char		*a_payload,
-		char		*a_output,
-		char		*a_stub,
-		char		*a_name
+		struct dsc$descriptor_s	*a_payload,
+		struct dsc$descriptor_s	*a_output,
+		struct dsc$descriptor_s	*a_stub,
+		struct dsc$descriptor_s	*a_name
 			)
 {
 unsigned int	l_sts;
 int		l_len, l_rd;
 uint32_t	l_vbn, l_crc, l_s, l_p;
 uint8_t		l_pfat[YADCX$K_FATSZ], l_sfat[YADCX$K_FATSZ];
-char		l_self[NAM$C_MAXRSS + 1], l_dna[NAM$C_MAXRSS + 1], l_txt[32], *l_semi;
+char		l_selfbuf[NAM$C_MAXRSS], l_dnabuf[NAM$C_MAXRSS], l_txtbuf[32], *l_semi;
+struct dsc$descriptor_s	l_self, l_dna, l_txt;
 YADCX$FILE	l_pay, l_stub, l_kit;
 YADCX$HDR	l_hdr, l_shdr;
 
 	/*
 	**  The payload: its size and its record attributes
 	*/
-	if ( !(1 & (l_sts = yadcx$open(&l_pay, a_payload, (int) strlen(a_payload), 0))) )
+	if ( !(1 & (l_sts = yadcx$open(&l_pay, a_payload, 0))) )
 		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_pay, a_payload);
 
 	if ( !l_pay.bytes )
-		return	yadcx$putmsg(YADCX$_EMPTY, 0, 1, l_pay.rsa);
+		return	yadcx$putmsg(YADCX$_EMPTY, 0, 1, &l_pay.rsadsc);
 
 	if ( !(1 & (l_sts = yadcx$get_fat(&l_pay, l_pfat))) )
-		return	yadcx$putmsg(YADCX$_ATTRERR, l_sts, 1, l_pay.rsa);
+		return	yadcx$putmsg(YADCX$_ATTRERR, l_sts, 1, &l_pay.rsadsc);
 
 	l_p = l_pay.blocks;
 
@@ -290,12 +303,12 @@ YADCX$HDR	l_hdr, l_shdr;
 	*/
 	memset(&l_hdr, 0, sizeof(l_hdr));
 
-	if ( *a_name )
+	if ( a_name->dsc$w_length )
 		{
-		l_len = (int) strlen(a_name);
-		if ( !(1 & (l_sts = s_check_name(a_name, l_len))) )
+		if ( !(1 & (l_sts = s_check_name(a_name))) )
 			return	yadcx$putmsg(l_sts, 0, 0);
-		memcpy(l_hdr.name, a_name, l_len);
+		l_len = a_name->dsc$w_length;
+		memcpy(l_hdr.name, a_name->dsc$a_pointer, l_len);
 		}
 	else	{
 		l_len = l_pay.nam.nam$b_name + l_pay.nam.nam$b_type;
@@ -306,50 +319,52 @@ YADCX$HDR	l_hdr, l_shdr;
 	/*
 	**  The stub: must be the bare one, without a kit header of its own
 	*/
-	if ( *a_stub )
-		l_sts = yadcx$open(&l_stub, a_stub, (int) strlen(a_stub), "YADCX_SFX.EXE");
+	if ( a_stub->dsc$w_length )
+		l_sts = yadcx$open(&l_stub, a_stub, &s_sfxname);
 	else	{
-		if ( !(1 & (l_sts = yadcx$self(l_self, sizeof(l_self), &l_len))) )
-			return	yadcx$putmsg(YADCX$_SYSERR, l_sts, 1, "$GETJPIW JPI$_IMAGNAME");
-		if ( (l_semi = strchr(l_self, ';')) )
-			*l_semi = '\0';
-		l_sts = yadcx$open(&l_stub, "YADCX_SFX.EXE", 13, l_self);
+		$DSCINIT(l_self, l_selfbuf, sizeof(l_selfbuf));
+		if ( !(1 & (l_sts = yadcx$self(&l_self))) )
+			return	yadcx$putmsg(YADCX$_SYSERR, l_sts, 1, &s_jpi);
+		if ( (l_semi = memchr(l_selfbuf, ';', l_self.dsc$w_length)) )	/* Cut the version off		*/
+			l_self.dsc$w_length = (uint16_t) (l_semi - l_selfbuf);
+		l_sts = yadcx$open(&l_stub, &s_sfxname, &l_self);
 		}
 
 	if ( !(1 & l_sts) )
-		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_stub, *a_stub ? a_stub : "YADCX_SFX.EXE");
+		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_stub, a_stub->dsc$w_length ? a_stub : &s_sfxname);
 
 	l_sts = yadcx$find_hdr(&l_stub, &l_vbn, &l_shdr);
 	if ( 1 & l_sts || l_sts == YADCX$_BADHDR || l_sts == YADCX$_BADVER )
-		return	yadcx$putmsg(YADCX$_NESTED, 0, 1, l_stub.rsa);
+		return	yadcx$putmsg(YADCX$_NESTED, 0, 1, &l_stub.rsadsc);
 	if ( l_sts != YADCX$_NOHEADER )
-		return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, l_stub.rsa);
+		return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &l_stub.rsadsc);
 
 	if ( !(1 & (l_sts = yadcx$get_fat(&l_stub, l_sfat))) )
-		return	yadcx$putmsg(YADCX$_ATTRERR, l_sts, 1, l_stub.rsa);
+		return	yadcx$putmsg(YADCX$_ATTRERR, l_sts, 1, &l_stub.rsadsc);
 
 	l_s = l_stub.blocks;
 
 	/*
 	**  The kit: /OUTPUT or <payload name>.EXE in the current directory
 	*/
-	memcpy(l_dna, l_pay.nam.nam$l_name, l_pay.nam.nam$b_name);
-	strcpy(l_dna + l_pay.nam.nam$b_name, ".EXE");
+	memcpy(l_dnabuf, l_pay.nam.nam$l_name, l_pay.nam.nam$b_name);
+	memcpy(l_dnabuf + l_pay.nam.nam$b_name, s_exe.dsc$a_pointer, s_exe.dsc$w_length);
+	$DSCINIT(l_dna, l_dnabuf, l_pay.nam.nam$b_name + s_exe.dsc$w_length);
 
-	if ( !(1 & (l_sts = yadcx$create(&l_kit, a_output, (int) strlen(a_output), l_dna, l_s + 1 + l_p))) )
-		return	yadcx$putmsg_rms(YADCX$_OPENOUT, &l_kit, *a_output ? a_output : l_dna);
+	if ( !(1 & (l_sts = yadcx$create(&l_kit, a_output, &l_dna, l_s + 1 + l_p))) )
+		return	yadcx$putmsg_rms(YADCX$_OPENOUT, &l_kit, a_output->dsc$w_length ? a_output : &l_dna);
 
 	if ( !(1 & (l_sts = s_copy(&l_stub, &l_kit, 1, 1, l_s, 0, 0, &l_rd))) )
 		{
 		yadcx$abort(&l_kit);
-		return	yadcx$putmsg(l_rd ? YADCX$_READERR : YADCX$_WRITEERR, l_sts, 1, l_rd ? l_stub.rsa : l_kit.rsa);
+		return	yadcx$putmsg(l_rd ? YADCX$_READERR : YADCX$_WRITEERR, l_sts, 1, l_rd ? &l_stub.rsadsc : &l_kit.rsadsc);
 		}
 
 	l_crc = 0xFFFFFFFF;
 	if ( !(1 & (l_sts = s_copy(&l_pay, &l_kit, 1, l_s + 2, l_p, l_pay.bytes, &l_crc, &l_rd))) )
 		{
 		yadcx$abort(&l_kit);
-		return	yadcx$putmsg(l_rd ? YADCX$_READERR : YADCX$_WRITEERR, l_sts, 1, l_rd ? l_pay.rsa : l_kit.rsa);
+		return	yadcx$putmsg(l_rd ? YADCX$_READERR : YADCX$_WRITEERR, l_sts, 1, l_rd ? &l_pay.rsadsc : &l_kit.rsadsc);
 		}
 
 	/*
@@ -373,7 +388,7 @@ YADCX$HDR	l_hdr, l_shdr;
 	if ( !(1 & (l_sts = yadcx$write(&l_kit, l_s + 1, &l_hdr, 1))) )
 		{
 		yadcx$abort(&l_kit);
-		return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, l_kit.rsa);
+		return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &l_kit.rsadsc);
 		}
 
 	/*
@@ -387,16 +402,17 @@ YADCX$HDR	l_hdr, l_shdr;
 	if ( !(1 & (l_sts = yadcx$close(&l_kit, l_sfat))) )
 		{
 		yadcx$abort(&l_kit);
-		return	yadcx$putmsg(YADCX$_ATTRERR, l_sts, 1, l_kit.rsa);
+		return	yadcx$putmsg(YADCX$_ATTRERR, l_sts, 1, &l_kit.rsadsc);
 		}
 
 	yadcx$close(&l_stub, 0);
 	yadcx$close(&l_pay, 0);
 
-	yadcx$fmt_uq(l_pay.bytes, l_txt, sizeof(l_txt));
-	yadcx$putmsg(YADCX$_PAYLOAD, 0, 4, l_pay.rsa, l_txt, l_p, l_hdr.crc);
+	$DSCINIT(l_txt, l_txtbuf, sizeof(l_txtbuf));
+	yadcx$fmt_uq(l_pay.bytes, &l_txt);
+	yadcx$putmsg(YADCX$_PAYLOAD, 0, 4, &l_pay.rsadsc, &l_txt, l_p, l_hdr.crc);
 
-	return	yadcx$putmsg(YADCX$_BUILT, 0, 3, l_kit.rsa, l_s, l_p);
+	return	yadcx$putmsg(YADCX$_BUILT, 0, 3, &l_kit.rsadsc, l_s, l_p);
 }
 
 
@@ -419,28 +435,47 @@ YADCX$HDR	l_hdr, l_shdr;
 int	main	(void)
 {
 unsigned int	l_sts;
-int		l_given, l_len;
-char		l_file[NAM$C_MAXRSS + 1], l_output[NAM$C_MAXRSS + 1], l_stub[NAM$C_MAXRSS + 1], l_name[YADCX$K_NAMESZ + 2];
+int		l_given;
+char		l_filebuf[NAM$C_MAXRSS], l_outbuf[NAM$C_MAXRSS], l_stubbuf[NAM$C_MAXRSS], l_namebuf[YADCX$K_NAMESZ + 1];
+struct dsc$descriptor_s	l_file, l_output, l_stub, l_name;
 
-	l_output[0] = l_stub[0] = l_name[0] = '\0';
+	/*
+	**  Buffer descriptors: the length is the size for CLI$GET_VALUE, then the
+	**  length of the value; an absent qualifier leaves an empty string.  The
+	**  /NAME buffer is one byte longer than allowed, so a too long value is
+	**  seen and refused, not cut.
+	*/
+	$DSCINIT(l_file, l_filebuf, sizeof(l_filebuf));
+	$DSCINIT(l_output, l_outbuf, 0);
+	$DSCINIT(l_stub, l_stubbuf, 0);
+	$DSCINIT(l_name, l_namebuf, 0);
 
-	if ( !(1 & (l_sts = yadcx$cli_parse("YADCX", 1, &l_given))) )
+	if ( !(1 & (l_sts = yadcx$cli_parse(&s_q_verb, 1, &l_given))) )
 		sys$exit(l_sts | STS$M_INHIB_MSG);
 
-	yadcx$cli_value("FILE", l_file, sizeof(l_file), &l_len);
+	yadcx$cli_value(&s_q_file, &l_file);
 
 	yadcx$crc_init();
 
-	if ( yadcx$cli_present("LIST") )
-		sys$exit(s_list(l_file) | STS$M_INHIB_MSG);
+	if ( yadcx$cli_present(&s_q_list) )
+		sys$exit(s_list(&l_file) | STS$M_INHIB_MSG);
 
-	if ( yadcx$cli_present("OUTPUT") )
-		yadcx$cli_value("OUTPUT", l_output, sizeof(l_output), &l_len);
-	if ( yadcx$cli_present("STUB") )
-		yadcx$cli_value("STUB", l_stub, sizeof(l_stub), &l_len);
-	if ( yadcx$cli_present("NAME") )
-		yadcx$cli_value("NAME", l_name, sizeof(l_name), &l_len);
+	if ( yadcx$cli_present(&s_q_output) )
+		{
+		l_output.dsc$w_length = sizeof(l_outbuf);
+		yadcx$cli_value(&s_q_output, &l_output);
+		}
+	if ( yadcx$cli_present(&s_q_stub) )
+		{
+		l_stub.dsc$w_length = sizeof(l_stubbuf);
+		yadcx$cli_value(&s_q_stub, &l_stub);
+		}
+	if ( yadcx$cli_present(&s_q_name) )
+		{
+		l_name.dsc$w_length = sizeof(l_namebuf);
+		yadcx$cli_value(&s_q_name, &l_name);
+		}
 
-	sys$exit(s_build(l_file, l_output, l_stub, l_name) | STS$M_INHIB_MSG);
+	sys$exit(s_build(&l_file, &l_output, &l_stub, &l_name) | STS$M_INHIB_MSG);
 	return	SS$_NORMAL;
 }

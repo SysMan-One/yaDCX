@@ -2,52 +2,54 @@
 !  YADCX_MSG.MSG -- messages of the yaDCX kit builder and of its stub
 !
 !  __MODULE__	YADCX_MSG
-!  __IDENT__	X-01-00
-!  __REV__	01.00.00
+!  __IDENT__	X-01-01
+!  __REV__	01.01.00
 !
 !  AUTHORS:	StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 !
 !  MODIFICATION HISTORY:
 !
 !	26-SEP-2026	CLD	X-01-00: initial version.
+!	26-SEP-2026	CLD	X-01-01: !AZ -> !AS, strings by descriptor.
 !
-!  Byte counts are passed as text (!AZ, made by yadcx$fmt_uq): the 32-bit
-!  message vector of $PUTMSG can not carry a quadword, and its $FAOL takes
-!  !UQ as a longword value.
+!  Strings are passed by descriptor (!AS), never as .ASCIZ.  Byte counts are
+!  passed as text too (made by yadcx$fmt_uq): the 32-bit message vector of
+!  $PUTMSG can not carry a quadword, and its $FAOL takes !UQ as a longword
+!  value.
 !
 !  Every message code is explained, with what to do about it, in the
 !  "Messages" section of AAAREADME.TXT.
 !
 	.Title		YADCX_MSG	yaDCX messages
-	.Ident		'X-01-00'
+	.Ident		'X-01-01'
 	.Facility	YADCX,1100/Prefix=YADCX$_
 
 	.Severity	success
-BUILT		<kit !AZ built, !UL stub + 1 header + !UL payload blocks>/FAO=3
-RESTORED	<!AZ restored, !AZ bytes, CRC-32 !XL verified>/FAO=3
+BUILT		<kit !AS built, !UL stub + 1 header + !UL payload blocks>/FAO=3
+RESTORED	<!AS restored, !AS bytes, CRC-32 !XL verified>/FAO=3
 VERIFIED	<payload CRC-32 !XL verified, nothing written>/FAO=1
 
 	.Severity	informational
-KITINFO		<kit contains !AD, !AZ bytes (!UL blocks), built !%D by yaDCX !AC>/FAO=6
+KITINFO		<kit contains !AD, !AS bytes (!UL blocks), built !%D by yaDCX !AC>/FAO=6
 KITCRC		<recorded CRC-32 of the payload is !XL>/FAO=1
-PAYLOAD		<payload !AZ, !AZ bytes (!UL blocks), CRC-32 !XL>/FAO=4
+PAYLOAD		<payload !AS, !AS bytes (!UL blocks), CRC-32 !XL>/FAO=4
 
 	.Severity	fatal
-NOHEADER	<no yaDCX kit header in !AZ -- this is the bare stub or not a yaDCX kit>/FAO=1
-BADHDR		<the kit header in !AZ is damaged -- get a fresh copy of the kit>/FAO=1
+NOHEADER	<no yaDCX kit header in !AS -- this is the bare stub or not a yaDCX kit>/FAO=1
+BADHDR		<the kit header in !AS is damaged -- get a fresh copy of the kit>/FAO=1
 BADVER		<kit format version !UL is not known to this program (it knows !UL)>/FAO=2
 TRUNCATED	<the kit is truncated: !UL blocks expected, !UL present -- transfer it again in binary mode>/FAO=2
 CRCERR		<payload CRC-32 mismatch: recorded !XL, computed !XL -- the kit is damaged, nothing written>/FAO=2
-NESTED		<!AZ already carries a kit header -- use the bare YADCX_SFX.EXE as the stub>/FAO=1
+NESTED		<!AS already carries a kit header -- use the bare YADCX_SFX.EXE as the stub>/FAO=1
 BADNAME		</NAME value must be a plain name.type, without device, directory or version>
-EMPTY		<!AZ is empty -- nothing to pack>/FAO=1
+EMPTY		<!AS is empty -- nothing to pack>/FAO=1
 
 	.Severity	error
-OPENIN		<error opening !AZ as input>/FAO=1
-OPENOUT		<error creating !AZ>/FAO=1
-READERR		<error reading !AZ>/FAO=1
-WRITEERR	<error writing !AZ>/FAO=1
-ATTRERR		<error reading or setting the record attributes of !AZ>/FAO=1
-SYSERR		<unexpected failure of !AZ>/FAO=1
+OPENIN		<error opening !AS as input>/FAO=1
+OPENOUT		<error creating !AS>/FAO=1
+READERR		<error reading !AS>/FAO=1
+WRITEERR	<error writing !AS>/FAO=1
+ATTRERR		<error reading or setting the record attributes of !AS>/FAO=1
+SYSERR		<unexpected failure of !AS>/FAO=1
 
 	.End

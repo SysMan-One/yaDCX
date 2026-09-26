@@ -2,8 +2,8 @@
 #define	__YADCX_H__	1
 
 #define	__MODULE__	"YADCX.H"
-#define	__IDENT__	"X-01-00ECO01"
-#define	__REV__		"01.00.01"
+#define	__IDENT__	"X-01-01"
+#define	__REV__		"01.01.00"
 
 /*
 **++
@@ -45,11 +45,15 @@
 **				SFX.C/MKCAT.C pair of [LAISHEV.YADX_KIT].
 **
 **	26-SEP-2026	CLD	X-01-00ECO01: yadcx$putmsg_rms(), yadcx$fmt_uq().
+**
+**	26-SEP-2026	CLD	X-01-01: $DSCINIT, YADCX$FILE.rsadsc, descriptor
+**				prototypes.
 **--
 */
 
 #include	<inttypes.h>			/* uint32_t, uint64_t ... - HP C V7.1 has no <stdint.h>	*/
 #include	<rms.h>
+#include	<descrip.h>
 
 
 /*
@@ -103,6 +107,13 @@ typedef struct yadcx_hdr_t {
 
 
 /*
+**  Fill a fixed-length text string descriptor: $DSCINIT(dsc, address, length).
+**  All strings of yaDCX travel as descriptors, never as .ASCIZ.
+*/
+#define	$DSCINIT(d, p, l)	((d).dsc$w_length = (uint16_t) (l), (d).dsc$b_dtype = DSC$K_DTYPE_T, (d).dsc$b_class = DSC$K_CLASS_S, (d).dsc$a_pointer = (char *) (p))
+
+
+/*
 **  A file opened for block I/O by yadcx$open()/yadcx$create()
 */
 typedef struct yadcx_file_t {
@@ -110,7 +121,8 @@ typedef struct yadcx_file_t {
 	struct NAM	nam;
 	struct XABFHC	fhc;
 	char		esa[NAM$C_MAXRSS];	/* Expanded file name					*/
-	char		rsa[NAM$C_MAXRSS + 1];	/* Resultant file name, .ASCIZ				*/
+	char		rsa[NAM$C_MAXRSS];	/* Resultant file name buffer				*/
+	struct dsc$descriptor_s	rsadsc;		/* Resultant file name, NAM$B_RSL long		*/
 	uint16_t	chan;			/* Channel of the UFO open				*/
 	uint64_t	bytes;			/* Exact size in bytes					*/
 	uint32_t	blocks;			/* Size in blocks, the last one may be partial		*/
@@ -135,12 +147,12 @@ globalvalue unsigned int
 **  Shared routines, YADCX_COMMON.C
 */
 unsigned int	yadcx$putmsg	(unsigned int a_msg, unsigned int a_sts, int a_nfao, ...);
-unsigned int	yadcx$putmsg_rms (unsigned int a_msg, YADCX$FILE *a_file, char *a_arg);
+unsigned int	yadcx$putmsg_rms (unsigned int a_msg, YADCX$FILE *a_file, struct dsc$descriptor_s *a_arg);
 void		yadcx$marker	(char *a_marker);
 void		yadcx$crc_init	(void);
 void		yadcx$crc	(uint32_t *a_crc, void *a_buf, uint32_t a_len);
-unsigned int	yadcx$open	(YADCX$FILE *a_file, char *a_name, int a_namelen, char *a_defname);
-unsigned int	yadcx$create	(YADCX$FILE *a_file, char *a_name, int a_namelen, char *a_defname, uint32_t a_blocks);
+unsigned int	yadcx$open	(YADCX$FILE *a_file, struct dsc$descriptor_s *a_name, struct dsc$descriptor_s *a_defname);
+unsigned int	yadcx$create	(YADCX$FILE *a_file, struct dsc$descriptor_s *a_name, struct dsc$descriptor_s *a_defname, uint32_t a_blocks);
 unsigned int	yadcx$read	(YADCX$FILE *a_file, uint32_t a_vbn, void *a_buf, uint32_t a_blocks);
 unsigned int	yadcx$write	(YADCX$FILE *a_file, uint32_t a_vbn, void *a_buf, uint32_t a_blocks);
 unsigned int	yadcx$get_fat	(YADCX$FILE *a_file, uint8_t *a_fat);
@@ -148,14 +160,14 @@ unsigned int	yadcx$close	(YADCX$FILE *a_file, uint8_t *a_fat);
 void		yadcx$abort	(YADCX$FILE *a_file);
 void		yadcx$fat_put	(uint8_t *a_fat, int a_off, uint32_t a_val);
 uint32_t	yadcx$fat_get	(uint8_t *a_fat, int a_off);
-unsigned int	yadcx$cli_parse	(char *a_verb, int a_prompt, int *a_given);
-int		yadcx$cli_present (char *a_name);
-unsigned int	yadcx$cli_value	(char *a_name, char *a_buf, int a_bufsz, int *a_len);
+unsigned int	yadcx$cli_parse	(struct dsc$descriptor_s *a_verb, int a_prompt, int *a_given);
+int		yadcx$cli_present (struct dsc$descriptor_s *a_name);
+unsigned int	yadcx$cli_value	(struct dsc$descriptor_s *a_name, struct dsc$descriptor_s *a_val);
 unsigned int	yadcx$find_hdr	(YADCX$FILE *a_file, uint32_t *a_vbn, YADCX$HDR *a_hdr);
 unsigned int	yadcx$check	(YADCX$FILE *a_file, uint32_t a_vbn, YADCX$HDR *a_hdr, uint32_t *a_crc);
 void		yadcx$show	(YADCX$HDR *a_hdr);
-void		yadcx$fmt_uq	(uint64_t a_val, char *a_buf, int a_bufsz);
-unsigned int	yadcx$self	(char *a_name, int a_namesz, int *a_len);
+void		yadcx$fmt_uq	(uint64_t a_val, struct dsc$descriptor_s *a_txt);
+unsigned int	yadcx$self	(struct dsc$descriptor_s *a_name);
 
 #undef	__MODULE__				/* The including module defines its own			*/
 #undef	__IDENT__

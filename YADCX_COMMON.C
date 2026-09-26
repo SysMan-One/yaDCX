@@ -19,8 +19,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX_COMMON"
-#define	__IDENT__	"X-01-00ECO01"
-#define	__REV__		"01.00.01"
+#define	__IDENT__	"X-01-01"
+#define	__REV__		"01.01.00"
 
 /*
 **++
@@ -47,6 +47,9 @@
 **
 **	26-SEP-2026	CLD	X-01-00ECO01: yadcx$putmsg_rms() - a failed
 **				$OPEN/$CREATE shows its STS and STV.
+**
+**	26-SEP-2026	CLD	X-01-01: all strings by descriptor, no .ASCIZ/strlen
+**				(open/create/putmsg_rms/cli_xxx/fmt_uq/self).
 **--
 */
 
@@ -147,7 +150,7 @@ va_list		l_ap;
 **	a_msg	-	YADCX$_OPENIN or YADCX$_OPENOUT
 **	a_file	-	the file context of the failed call, its FAB holds
 **			the STS and STV
-**	a_arg	-	file name for the !AZ of the message, .ASCIZ
+**	a_arg	-	file name for the !AS of the message
 **
 **  RETURNS:
 **
@@ -157,7 +160,7 @@ va_list		l_ap;
 unsigned int	yadcx$putmsg_rms	(
 		unsigned int	a_msg,
 		YADCX$FILE	*a_file,
-		char		*a_arg
+		struct dsc$descriptor_s	*a_arg
 			)
 {
 uint32_t	l_vec[6];
@@ -245,10 +248,7 @@ void	yadcx$crc	(
 {
 struct dsc$descriptor_s	l_dsc;
 
-	l_dsc.dsc$w_length = (uint16_t) a_len;
-	l_dsc.dsc$b_dtype = DSC$K_DTYPE_T;
-	l_dsc.dsc$b_class = DSC$K_CLASS_S;
-	l_dsc.dsc$a_pointer = (char *) a_buf;
+	$DSCINIT(l_dsc, a_buf, a_len);
 
 	*a_crc = lib$crc(s_crctab, (int *) a_crc, &l_dsc);
 }
@@ -302,10 +302,9 @@ void	yadcx$fat_put	(
 **--
 */
 static void	s_init	(
-		YADCX$FILE	*a_file,
-		char		*a_name,
-		int		a_namelen,
-		char		*a_defname
+		YADCX$FILE		*a_file,
+		struct dsc$descriptor_s	*a_name,
+		struct dsc$descriptor_s	*a_defname
 			)
 {
 	memset(a_file, 0, sizeof(YADCX$FILE));
@@ -314,12 +313,12 @@ static void	s_init	(
 	a_file->nam = cc$rms_nam;
 	a_file->fhc = cc$rms_xabfhc;
 
-	a_file->fab.fab$l_fna = a_name;
-	a_file->fab.fab$b_fns = (uint8_t) a_namelen;
+	a_file->fab.fab$l_fna = a_name->dsc$a_pointer;
+	a_file->fab.fab$b_fns = (uint8_t) a_name->dsc$w_length;
 	if ( a_defname )
 		{
-		a_file->fab.fab$l_dna = a_defname;
-		a_file->fab.fab$b_dns = (uint8_t) strlen(a_defname);
+		a_file->fab.fab$l_dna = a_defname->dsc$a_pointer;
+		a_file->fab.fab$b_dns = (uint8_t) a_defname->dsc$w_length;
 		}
 	a_file->fab.fab$l_fop = FAB$M_UFO;
 	a_file->fab.fab$l_nam = &a_file->nam;
@@ -328,7 +327,9 @@ static void	s_init	(
 	a_file->nam.nam$l_esa = a_file->esa;
 	a_file->nam.nam$b_ess = sizeof(a_file->esa);
 	a_file->nam.nam$l_rsa = a_file->rsa;
-	a_file->nam.nam$b_rss = sizeof(a_file->rsa) - 1;
+	a_file->nam.nam$b_rss = sizeof(a_file->rsa);
+
+	$DSCINIT(a_file->rsadsc, a_file->rsa, 0);
 }
 
 
@@ -341,13 +342,12 @@ static void	s_init	(
 **
 **  INPUTS:
 **
-**	a_name	-	file specification, need not be zero-terminated
-**	a_namelen -	its length
-**	a_defname -	default file specification, .ASCIZ, or NULL
+**	a_name	-	file specification, descriptor
+**	a_defname -	default file specification, descriptor, or NULL
 **
 **  OUTPUTS:
 **
-**	a_file	-	file context: channel, resultant name, bytes, blocks
+**	a_file	-	file context: channel, resultant name (rsadsc), bytes, blocks
 **
 **  RETURNS:
 **
@@ -355,22 +355,21 @@ static void	s_init	(
 **--
 */
 unsigned int	yadcx$open	(
-		YADCX$FILE	*a_file,
-		char		*a_name,
-		int		a_namelen,
-		char		*a_defname
+		YADCX$FILE		*a_file,
+		struct dsc$descriptor_s	*a_name,
+		struct dsc$descriptor_s	*a_defname
 			)
 {
 unsigned int	l_sts;
 
-	s_init(a_file, a_name, a_namelen, a_defname);
+	s_init(a_file, a_name, a_defname);
 	a_file->fab.fab$b_fac = FAB$M_GET;
 	a_file->fab.fab$b_shr = FAB$M_SHRGET;
 
 	if ( !(1 & (l_sts = sys$open(&a_file->fab))) )
 		return	l_sts;
 
-	a_file->rsa[a_file->nam.nam$b_rsl] = '\0';
+	a_file->rsadsc.dsc$w_length = a_file->nam.nam$b_rsl;
 	a_file->chan = (uint16_t) a_file->fab.fab$l_stv;
 
 	if ( a_file->fhc.xab$l_ebk )
@@ -391,14 +390,13 @@ unsigned int	l_sts;
 **
 **  INPUTS:
 **
-**	a_name	-	file specification, need not be zero-terminated
-**	a_namelen -	its length
-**	a_defname -	default file specification, .ASCIZ, or NULL
+**	a_name	-	file specification, descriptor
+**	a_defname -	default file specification, descriptor, or NULL
 **	a_blocks -	initial allocation
 **
 **  OUTPUTS:
 **
-**	a_file	-	file context: channel, resultant name
+**	a_file	-	file context: channel, resultant name (rsadsc)
 **
 **  RETURNS:
 **
@@ -406,16 +404,15 @@ unsigned int	l_sts;
 **--
 */
 unsigned int	yadcx$create	(
-		YADCX$FILE	*a_file,
-		char		*a_name,
-		int		a_namelen,
-		char		*a_defname,
-		uint32_t	a_blocks
+		YADCX$FILE		*a_file,
+		struct dsc$descriptor_s	*a_name,
+		struct dsc$descriptor_s	*a_defname,
+		uint32_t		a_blocks
 			)
 {
 unsigned int	l_sts;
 
-	s_init(a_file, a_name, a_namelen, a_defname);
+	s_init(a_file, a_name, a_defname);
 	a_file->fab.fab$b_fac = FAB$M_PUT;
 	a_file->fab.fab$b_rfm = FAB$C_UDF;
 	a_file->fab.fab$l_alq = a_blocks;
@@ -423,7 +420,7 @@ unsigned int	l_sts;
 	if ( !(1 & (l_sts = sys$create(&a_file->fab))) )
 		return	l_sts;
 
-	a_file->rsa[a_file->nam.nam$b_rsl] = '\0';
+	a_file->rsadsc.dsc$w_length = a_file->nam.nam$b_rsl;
 	a_file->chan = (uint16_t) a_file->fab.fab$l_stv;
 
 	return	l_sts;
@@ -550,10 +547,7 @@ YADCX$IOSB	l_iosb;
 YADCX$ATR	l_atr[2];
 struct dsc$descriptor_s	l_dev, l_fibdsc;
 
-	l_dev.dsc$w_length = (uint8_t) a_file->nam.nam$t_dvi[0];
-	l_dev.dsc$b_dtype = DSC$K_DTYPE_T;
-	l_dev.dsc$b_class = DSC$K_CLASS_S;
-	l_dev.dsc$a_pointer = &a_file->nam.nam$t_dvi[1];
+	$DSCINIT(l_dev, &a_file->nam.nam$t_dvi[1], (uint8_t) a_file->nam.nam$t_dvi[0]);	/* NAM$T_DVI is .ASCIC	*/
 
 	if ( !(1 & (l_sts = sys$assign(&l_dev, &l_chan, 0, 0, 0))) )
 		return	l_sts;
@@ -672,7 +666,7 @@ struct FAB	l_fab = cc$rms_fab;
 **
 **  INPUTS:
 **
-**	a_verb	-	verb to parse under, .ASCIZ: "YADCX" or "SFX"
+**	a_verb	-	verb to parse under, descriptor: "YADCX" or "SFX"
 **	a_prompt -	1 - a line is always parsed, a missing required
 **			parameter is prompted for (the builder); 0 - an
 **			empty line is left alone (the stub)
@@ -689,26 +683,23 @@ struct FAB	l_fab = cc$rms_fab;
 extern int	YADCX_CLI;			/* The command table, from YADCX_CLI.OBJ		*/
 
 unsigned int	yadcx$cli_parse	(
-		char		*a_verb,
+		struct dsc$descriptor_s	*a_verb,
 		int		a_prompt,
 		int		*a_given
 			)
 {
 unsigned int	l_sts;
 uint16_t	l_len = 0;
-int		l_vlen = (int) strlen(a_verb);
+int		l_vlen = a_verb->dsc$w_length;
 char		l_line[1024];
 struct dsc$descriptor_s	l_dsc;
 
 	*a_given = 0;
 
-	memcpy(l_line, a_verb, l_vlen);
+	memcpy(l_line, a_verb->dsc$a_pointer, l_vlen);
 	l_line[l_vlen] = ' ';
 
-	l_dsc.dsc$b_dtype = DSC$K_DTYPE_T;
-	l_dsc.dsc$b_class = DSC$K_CLASS_S;
-	l_dsc.dsc$a_pointer = l_line + l_vlen + 1;
-	l_dsc.dsc$w_length = (uint16_t) (sizeof(l_line) - l_vlen - 1);
+	$DSCINIT(l_dsc, l_line + l_vlen + 1, sizeof(l_line) - l_vlen - 1);
 
 	if ( !(1 & (l_sts = lib$get_foreign(&l_dsc, 0, &l_len, 0))) )
 		return	l_sts;
@@ -716,8 +707,7 @@ struct dsc$descriptor_s	l_dsc;
 	if ( !l_len && !a_prompt )
 		return	SS$_NORMAL;
 
-	l_dsc.dsc$a_pointer = l_line;
-	l_dsc.dsc$w_length = (uint16_t) (l_vlen + 1 + l_len);
+	$DSCINIT(l_dsc, l_line, l_vlen + 1 + l_len);
 
 	if ( !(1 & (l_sts = cli$dcl_parse(&l_dsc, (void *) &YADCX_CLI, lib$get_input, lib$get_input, 0))) )
 		return	l_sts;
@@ -736,13 +726,13 @@ struct dsc$descriptor_s	l_dsc;
 **
 **  INPUTS:
 **
-**	a_name	-	entity name, .ASCIZ
-**	a_bufsz	-	size of a_buf, one byte is kept for the terminating zero
+**	a_name	-	entity name, descriptor
 **
-**  OUTPUTS:
+**  INPUTS/OUTPUTS:
 **
-**	a_buf	-	the value, .ASCIZ (yadcx$cli_value)
-**	a_len	-	its length (yadcx$cli_value)
+**	a_val	-	(yadcx$cli_value) descriptor of the value buffer: on
+**			input its length is the buffer size, on output the
+**			length of the value (0 on a failure)
 **
 **  RETURNS:
 **
@@ -751,43 +741,22 @@ struct dsc$descriptor_s	l_dsc;
 **--
 */
 int	yadcx$cli_present	(
-		char		*a_name
+		struct dsc$descriptor_s	*a_name
 			)
 {
-struct dsc$descriptor_s	l_dsc;
-
-	l_dsc.dsc$w_length = (uint16_t) strlen(a_name);
-	l_dsc.dsc$b_dtype = DSC$K_DTYPE_T;
-	l_dsc.dsc$b_class = DSC$K_CLASS_S;
-	l_dsc.dsc$a_pointer = a_name;
-
-	return	(1 & cli$present(&l_dsc)) ? 1 : 0;
+	return	(1 & cli$present(a_name)) ? 1 : 0;
 }
 
 unsigned int	yadcx$cli_value	(
-		char		*a_name,
-		char		*a_buf,
-		int		a_bufsz,
-		int		*a_len
+		struct dsc$descriptor_s	*a_name,
+		struct dsc$descriptor_s	*a_val
 			)
 {
 unsigned int	l_sts;
 uint16_t	l_len = 0;
-struct dsc$descriptor_s	l_name, l_val;
 
-	l_name.dsc$w_length = (uint16_t) strlen(a_name);
-	l_name.dsc$b_dtype = DSC$K_DTYPE_T;
-	l_name.dsc$b_class = DSC$K_CLASS_S;
-	l_name.dsc$a_pointer = a_name;
-
-	l_val.dsc$w_length = (uint16_t) (a_bufsz - 1);
-	l_val.dsc$b_dtype = DSC$K_DTYPE_T;
-	l_val.dsc$b_class = DSC$K_CLASS_S;
-	l_val.dsc$a_pointer = a_buf;
-
-	l_sts = cli$get_value(&l_name, &l_val, &l_len);
-	a_buf[(1 & l_sts) ? l_len : 0] = '\0';
-	*a_len = (1 & l_sts) ? l_len : 0;
+	l_sts = cli$get_value(a_name, a_val, &l_len);
+	a_val->dsc$w_length = (1 & l_sts) ? l_len : 0;
 
 	return	l_sts;
 }
@@ -930,7 +899,7 @@ uint64_t	l_left = a_hdr->bytes;
 **++
 **  FUNCTIONAL DESCRIPTION:
 **
-**	Turn a quadword into decimal text for an !AZ of a message.  $PUTMSG
+**	Turn a quadword into decimal text for an !AS of a message.  $PUTMSG
 **	has a 32-bit message vector, its $FAOL takes !UQ as a longword value,
 **	so the number is formatted here by $FAOL_64, which takes quadwords by
 **	value.
@@ -938,34 +907,27 @@ uint64_t	l_left = a_hdr->bytes;
 **  INPUTS:
 **
 **	a_val	-	the value
-**	a_bufsz	-	size of a_buf
 **
-**  OUTPUTS:
+**  INPUTS/OUTPUTS:
 **
-**	a_buf	-	the text, .ASCIZ
+**	a_txt	-	descriptor of the text buffer: on input its length is
+**			the buffer size, on output the length of the text
 **--
 */
 void	yadcx$fmt_uq	(
 		uint64_t	a_val,
-		char		*a_buf,
-		int		a_bufsz
+		struct dsc$descriptor_s	*a_txt
 			)
 {
 uint16_t	l_len = 0;
 uint64_t	l_prm[1];
 $DESCRIPTOR(l_ctr, "!UQ");
-struct dsc$descriptor_s	l_out;
 
 	l_prm[0] = a_val;
 
-	l_out.dsc$w_length = (uint16_t) (a_bufsz - 1);
-	l_out.dsc$b_dtype = DSC$K_DTYPE_T;
-	l_out.dsc$b_class = DSC$K_CLASS_S;
-	l_out.dsc$a_pointer = a_buf;
-
-	if ( !(1 & sys$faol_64((void *) &l_ctr, &l_len, (void *) &l_out, (void *) l_prm)) )
+	if ( !(1 & sys$faol_64((void *) &l_ctr, &l_len, (void *) a_txt, (void *) l_prm)) )
 		l_len = 0;
-	a_buf[l_len] = '\0';
+	a_txt->dsc$w_length = l_len;
 }
 
 
@@ -985,7 +947,8 @@ void	yadcx$show	(
 			)
 {
 uint64_t	l_bytes, l_built;
-char		l_txt[32];
+char		l_buf[32];
+struct dsc$descriptor_s	l_txt;
 
 	/*
 	**  !%D takes the address of a quadword; the header is packed, so hand
@@ -993,9 +956,10 @@ char		l_txt[32];
 	*/
 	memcpy(&l_bytes, &a_hdr->bytes, sizeof(l_bytes));
 	memcpy(&l_built, &a_hdr->built, sizeof(l_built));
-	yadcx$fmt_uq(l_bytes, l_txt, sizeof(l_txt));
+	$DSCINIT(l_txt, l_buf, sizeof(l_buf));
+	yadcx$fmt_uq(l_bytes, &l_txt);
 
-	yadcx$putmsg(YADCX$_KITINFO, 0, 6, a_hdr->namelen, a_hdr->name, l_txt, a_hdr->blocks, &l_built, a_hdr->ident);
+	yadcx$putmsg(YADCX$_KITINFO, 0, 6, a_hdr->namelen, a_hdr->name, &l_txt, a_hdr->blocks, &l_built, a_hdr->ident);
 	yadcx$putmsg(YADCX$_KITCRC, 0, 1, a_hdr->crc);
 }
 
@@ -1006,14 +970,10 @@ char		l_txt[32];
 **
 **	Get the full file specification of the running image (for the stub - the kit).
 **
-**  INPUTS:
+**  INPUTS/OUTPUTS:
 **
-**	a_namesz -	size of a_name
-**
-**  OUTPUTS:
-**
-**	a_name	-	buffer for the name, .ASCIZ
-**	a_len	-	its length
+**	a_name	-	descriptor of the name buffer: on input its length is
+**			the buffer size, on output the length of the name
 **
 **  RETURNS:
 **
@@ -1021,9 +981,7 @@ char		l_txt[32];
 **--
 */
 unsigned int	yadcx$self	(
-		char		*a_name,
-		int		a_namesz,
-		int		*a_len
+		struct dsc$descriptor_s	*a_name
 			)
 {
 unsigned int	l_sts;
@@ -1031,9 +989,9 @@ uint16_t	l_len = 0;
 ILE3		l_itm[2];
 struct { uint32_t status, spare; }	l_iosb;
 
-	l_itm[0].ile3$w_length = (uint16_t) (a_namesz - 1);
+	l_itm[0].ile3$w_length = a_name->dsc$w_length;
 	l_itm[0].ile3$w_code = JPI$_IMAGNAME;
-	l_itm[0].ile3$ps_bufaddr = a_name;
+	l_itm[0].ile3$ps_bufaddr = a_name->dsc$a_pointer;
 	l_itm[0].ile3$ps_retlen_addr = &l_len;
 	memset(&l_itm[1], 0, sizeof(ILE3));
 
@@ -1041,8 +999,7 @@ struct { uint32_t status, spare; }	l_iosb;
 	if ( 1 & l_sts )
 		l_sts = l_iosb.status;
 
-	a_name[l_len] = '\0';
-	*a_len = l_len;
+	a_name->dsc$w_length = l_len;
 
 	return	l_sts;
 }

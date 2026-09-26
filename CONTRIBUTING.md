@@ -134,7 +134,8 @@ A structure, exactly as in `YADCX.H`:
 typedef struct yadcx_file_t {
 	struct FAB	fab;
 	struct NAM	nam;
-	char		rsa[NAM$C_MAXRSS + 1];	/* Resultant file name, .ASCIZ				*/
+	char		rsa[NAM$C_MAXRSS];	/* Resultant file name buffer				*/
+	struct dsc$descriptor_s	rsadsc;		/* Resultant file name, NAM$B_RSL long		*/
 	uint16_t	chan;			/* Channel of the UFO open				*/
 	uint64_t	bytes;			/* Exact size in bytes					*/
 } YADCX$FILE;
@@ -161,6 +162,14 @@ typedef struct yadcx_file_t {
 ## 5. Code rules
 
 - **A routine returns a status**; results go back through output parameters.
+- **Strings travel as descriptors** (`struct dsc$descriptor_s`), never as
+  `.ASCIZ`: no `strlen`, `strcpy`, `strchr` on text, no `'\0'` terminators.
+  Literals are `static $DESCRIPTOR(s_q_name, "TEXT")`; a buffer gets a
+  descriptor with `$DSCINIT(dsc, buffer, length)` (`YADCX.H`). An output string
+  is a buffer descriptor whose length is the size on input and the length of the
+  result on output (`yadcx$cli_value`, `yadcx$fmt_uq`, `yadcx$self`). Messages
+  take strings as `!AS` (or `!AD`/`!AC` for counted data), never `!AZ`. Use the
+  `STR$` routines for searching (`STR$FIND_FIRST_IN_SET`, …).
 - **Every status is checked on its low bit**: `if ( !(1 & l_sts) )`.
 - **No C RTL file I/O** (`fopen`, `fread`, `printf` to files…). Files are
   opened by RMS (`FAB$M_UFO`) and moved with `$QIOW` `IO$_READVBLK` /
@@ -275,6 +284,13 @@ AI-агентам: прочитайте также [`AGENTS.md`](AGENTS.md).
 ## 5. Правила кода
 
 - **Рутина возвращает статус**, результаты — через выходные параметры.
+- **Строки — только дескрипторами** (`struct dsc$descriptor_s`), никакого
+  `.ASCIZ`: ни `strlen`, ни `strcpy`/`strchr` по тексту, ни `'\0'` в конце.
+  Литералы — `static $DESCRIPTOR(s_q_имя, "ТЕКСТ")`, буфер — через
+  `$DSCINIT(dsc, буфер, длина)` (`YADCX.H`). Выходная строка — дескриптор
+  буфера: на входе длина = размер, на выходе = длина результата. В сообщениях
+  строки — `!AS` (или `!AD`/`!AC`), не `!AZ`. Для поиска — `STR$`
+  (`STR$FIND_FIRST_IN_SET` и т. п.).
 - **Каждый статус проверяется по младшему биту**: `if ( !(1 & l_sts) )`.
 - **Никакого файлового ввода-вывода C RTL.** Только RMS (`FAB$M_UFO`),
   `$QIOW` `IO$_READVBLK`/`IO$_WRITEVBLK`, атрибуты — через ACP

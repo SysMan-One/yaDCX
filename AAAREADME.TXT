@@ -4,8 +4,15 @@ __MODULE__  AAAREADME
 __IDENT__   X-01-00ECO01
 __REV__     01.00.01
 
-(The text is UTF-8: the Russian part needs a UTF-8 terminal, or read it
-in README.md on the git side.)
+AUTHORS:    StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
+
+MODIFICATION HISTORY:
+
+    26-SEP-2026  CLD  X-01-00: initial version.
+    26-SEP-2026  CLD  X-01-00ECO01: example session, NOTNATIVE, yadcx_check.py.
+
+Made from README.md.  The text is UTF-8: the Russian part needs a UTF-8
+terminal, or read README.md on the git side.
 
 YADCX -- SELF-EXTRACTING KITS FOR OPENVMS
 ========================================
@@ -65,6 +72,8 @@ Files
         defines the YADCX command
   AAAREADME.TXT
         this guide, for VMS users
+  tools/yadcx_check.py
+        checks kits on Linux (or anywhere with Python 3)
 
 Build
 -----
@@ -82,9 +91,7 @@ Make a kit
 ----------
 
     $ BACKUP [MYAPP...]*.* MYAPP.BCK/SAVE_SET
-    $ YADCX MYAPP.BCK
-    %YADCX-I-PAYLOAD, payload DKA0:[WORK]MYAPP.BCK;1, 1645056 bytes (3213 blocks), CRC-32 95DEB4C2
-    %YADCX-S-BUILT, kit DKA0:[WORK]MYAPP.EXE;1 built, 33 stub + 1 header + 3213 payload blocks
+    $ YADCX MYAPP.BCK                 ! makes MYAPP.EXE in the current directory
 
 Qualifiers:
 
@@ -116,11 +123,223 @@ With qualifiers, define it as a command first:
 Check a kit on Linux
 --------------------
 
+Fetch the kit in binary mode, then:
+
+    $ python3 tools/yadcx_check.py SRC.EXE
+    SRC.EXE: header at VBN 35, 258048 bytes, recorded C5EC8DE2, computed C5EC8DE2 -> OK
+
+The exit status is 0 when all kits are OK. The same check in a few lines:
+
     import zlib, struct
     k = open('MYAPP.EXE', 'rb').read()
     h = k.find(b'yaDCX-KIT-HEADER')                 # always at a 512-byte boundary
     crc, size = struct.unpack_from('<IQ', k, h + 20)
     print(zlib.crc32(k[h + 512 : h + 512 + size]) == crc)
+
+Example session
+---------------
+
+A real run on OpenVMS Alpha V8.3, recorded with SET VERIFY: lines that start
+with $ are commands, the rest is what they print. @ATTR file is a small demo
+helper that prints one line of RMS attributes (F$FILE_ATTRIBUTES).
+
+What it shows:
+
+1. three sample files: a BACKUP saveset (Fixed 32256), a text file (Variable, CR), an image (Fixed 512);
+2. a kit for each of them, one with /OUTPUT, one with /NAME;
+3. YADCX /LIST looks into a kit;
+4. the kit is copied under another name and run: the saveset comes back with the same attributes,
+   DIFFERENCES finds nothing, and BACKUP restores the files from it;
+5. /VERIFY and /OUTPUT of a kit;
+6. damaged kits: one changed byte (CRCERR, nothing written), a lost end (TRUNCATED),
+   a kit sent by FTP in text mode (VMS can not even start it: NOTNATIVE);
+7. typical mistakes and their messages;
+8. the same CRC check on Linux.
+
+    ! ---- OpenVMS Alpha V8.3, 26-SEP-2026, part 1 ----
+    $ !
+    $ ! --- 0. Setup: define the YADCX command
+    $ @DQB0:[LAISHEV.YADCX]YADCX
+    $ SHOW SYMBOL YADCX
+      YADCX == "$DQB0:[LAISHEV.YADCX]YADCX.EXE"
+    $ SET DEFAULT DQB0:[LAISHEV.YADCX.DEMO]
+    $ !
+    $ ! --- 1. Sample files: a BACKUP saveset, a text file, an image
+    $ BACKUP DQB0:[LAISHEV.YADCX]*.C,*.H,*.MSG,*.CLD,*.COM,*.TXT SRC.BCK/SAVE_SET
+    $ COPY DQB0:[LAISHEV.YADCX]AAAREADME.TXT []NOTES.TXT
+    $ COPY DQB0:[LAISHEV.YADCX]YADCX.EXE []TOOL.EXE
+    $ @ATTR SRC.BCK
+      SRC.BCK          rfm=FIX mrs=32256 rat=none bytes=258048
+    $ @ATTR NOTES.TXT
+      NOTES.TXT        rfm=VAR mrs=    0 rat=CR   bytes=14084
+    $ @ATTR TOOL.EXE
+      TOOL.EXE         rfm=FIX mrs=  512 rat=none bytes=19968
+    $ !
+    $ ! --- 2. Build kits
+    $ YADCX SRC.BCK
+    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX.DEMO]SRC.BCK;1, 258048 bytes (504 blocks), CRC-32 C5EC8DE2
+    %YADCX-S-BUILT, kit DQB0:[LAISHEV.YADCX.DEMO]SRC.EXE;1 built, 34 stub + 1 header + 504 payload blocks
+    $ SHOW SYMBOL $STATUS
+      $STATUS == "%X1C4C8009"
+    $ YADCX NOTES.TXT /OUTPUT=[.KITS]NOTESKIT
+    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX.DEMO]NOTES.TXT;1, 14084 bytes (28 blocks), CRC-32 A2620A68
+    %YADCX-S-BUILT, kit DQB0:[LAISHEV.YADCX.DEMO.KITS]NOTESKIT.EXE;1 built, 34 stub + 1 header + 28 payload blocks
+    $ YADCX TOOL.EXE /OUTPUT=[.KITS]TOOLKIT /NAME=NEWTOOL.EXE
+    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX.DEMO]TOOL.EXE;1, 19968 bytes (39 blocks), CRC-32 049E9B2F
+    %YADCX-S-BUILT, kit DQB0:[LAISHEV.YADCX.DEMO.KITS]TOOLKIT.EXE;1 built, 34 stub + 1 header + 39 payload blocks
+    $ DIRECTORY/SIZE SRC.EXE,[.KITS]*.EXE
+
+    Directory DQB0:[LAISHEV.YADCX.DEMO]
+
+    SRC.EXE;1                539
+
+    Total of 1 file, 539 blocks.
+
+    Directory DQB0:[LAISHEV.YADCX.DEMO.KITS]
+
+    NOTESKIT.EXE;1            63
+    TOOLKIT.EXE;1             74
+
+    Total of 2 files, 137 blocks.
+
+    Grand total of 2 directories, 3 files, 676 blocks.
+    $ !
+    $ ! --- 3. Look into a kit without unpacking it
+    $ YADCX /LIST SRC.EXE
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 12:47:54.78 by yaDCX X-01-00ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is C5EC8DE2
+    %YADCX-S-VERIFIED, payload CRC-32 C5EC8DE2 verified, nothing written
+    $ !
+    $ ! --- 4. "Another system": copy the kit under another name and run it
+    $ COPY SRC.EXE [.OTHER]MYSOURCES.EXE
+    $ SET DEFAULT [.OTHER]
+    $ RUN MYSOURCES.EXE
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 12:47:54.78 by yaDCX X-01-00ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is C5EC8DE2
+    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX.DEMO.OTHER]SRC.BCK;1 restored, 258048 bytes, CRC-32 C5EC8DE2 verified
+    $ SHOW SYMBOL $STATUS
+      $STATUS == "%X1C4C8011"
+    $ @[-]ATTR SRC.BCK
+      SRC.BCK          rfm=FIX mrs=32256 rat=none bytes=258048
+    $ DIFFERENCES [-]SRC.BCK []SRC.BCK
+    Number of difference sections found: 0
+    Number of difference records found: 0
+
+    DIFFERENCES /IGNORE=()/MERGED=1-
+        DQB0:[LAISHEV.YADCX.DEMO]SRC.BCK;1-
+        DQB0:[LAISHEV.YADCX.DEMO.OTHER]SRC.BCK;1
+    $ BACKUP SRC.BCK/SAVE_SET [.FILES]
+    $ DIRECTORY/SIZE [.FILES]
+
+    Directory DQB0:[LAISHEV.YADCX.DEMO.OTHER.FILES]
+
+    AAAREADME.TXT;2           28
+    YADCX.C;4                 24
+    YADCX.COM;3                2
+    YADCX.H;4                 14
+    YADCX_BUILD.COM;1          4
+    YADCX_CLI.CLD;2            4
+    YADCX_COMMON.C;5          46
+    YADCX_MSG.MSG;2            5
+    YADCX_SFX.C;5             13
+
+    Total of 9 files, 140 blocks.
+    $ DIFFERENCES [.FILES]YADCX.C DQB0:[LAISHEV.YADCX]YADCX.C
+    Number of difference sections found: 0
+    Number of difference records found: 0
+
+    DIFFERENCES /IGNORE=()/MERGED=1-
+        DQB0:[LAISHEV.YADCX.DEMO.OTHER.FILES]YADCX.C;4-
+        DQB0:[LAISHEV.YADCX]YADCX.C;4
+    $ !
+    $ ! --- 5. Qualifiers of a kit: /VERIFY, /OUTPUT; a name given with /NAME
+    $ K :== $DQB0:[LAISHEV.YADCX.DEMO.KITS]NOTESKIT.EXE
+    $ K /VERIFY
+    %YADCX-I-KITINFO, kit contains NOTES.TXT, 14084 bytes (28 blocks), built 26-SEP-2026 12:47:54.86 by yaDCX X-01-00ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is A2620A68
+    %YADCX-S-VERIFIED, payload CRC-32 A2620A68 verified, nothing written
+    $ K /OUTPUT=README_COPY.TXT
+    %YADCX-I-KITINFO, kit contains NOTES.TXT, 14084 bytes (28 blocks), built 26-SEP-2026 12:47:54.86 by yaDCX X-01-00ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is A2620A68
+    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX.DEMO.OTHER]README_COPY.TXT;1 restored, 14084 bytes, CRC-32 A2620A68 verified
+    $ K :== $DQB0:[LAISHEV.YADCX.DEMO.KITS]TOOLKIT.EXE
+    $ K
+    %YADCX-I-KITINFO, kit contains NEWTOOL.EXE, 19968 bytes (39 blocks), built 26-SEP-2026 12:47:54.93 by yaDCX X-01-00ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 049E9B2F
+    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX.DEMO.OTHER]NEWTOOL.EXE;1 restored, 19968 bytes, CRC-32 049E9B2F verified
+    $ @[-]ATTR README_COPY.TXT
+      README_COPY.TXT  rfm=VAR mrs=    0 rat=CR   bytes=14084
+    $ @[-]ATTR NEWTOOL.EXE
+      NEWTOOL.EXE      rfm=FIX mrs=  512 rat=none bytes=19968
+    $ DIFFERENCES [-]NOTES.TXT []README_COPY.TXT
+    Number of difference sections found: 0
+    Number of difference records found: 0
+
+    DIFFERENCES /IGNORE=()/MERGED=1-
+        DQB0:[LAISHEV.YADCX.DEMO]NOTES.TXT;1-
+        DQB0:[LAISHEV.YADCX.DEMO.OTHER]README_COPY.TXT;1
+    $ DIFFERENCES [-]TOOL.EXE []NEWTOOL.EXE
+    Number of difference sections found: 0
+    Number of difference records found: 0
+
+    DIFFERENCES /IGNORE=()/MERGED=1-
+        DQB0:[LAISHEV.YADCX.DEMO]TOOL.EXE;1-
+        DQB0:[LAISHEV.YADCX.DEMO.OTHER]NEWTOOL.EXE;1
+
+    ! ---- part 2 ----
+    $ !
+    $ ! --- 6. Kits damaged on the way (made on Linux from SRC.EXE):
+    $ !        BAD.EXE - one byte of the payload changed, SHORT.EXE - the last
+    $ !        100 blocks lost, TEXTMODE.EXE - sent by FTP in ASCII mode
+    $ @DQB0:[LAISHEV.YADCX]YADCX
+    $ SET DEFAULT DQB0:[LAISHEV.YADCX.DEMO.BROKEN]
+    $ DIRECTORY/SIZE
+
+    Directory DQB0:[LAISHEV.YADCX.DEMO.BROKEN]
+
+    BAD.EXE;1                539
+    SHORT.EXE;1              439
+    TEXTMODE.EXE;1           540
+
+    Total of 3 files, 1518 blocks.
+    $ RUN BAD.EXE
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 12:47:54.78 by yaDCX X-01-00ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is C5EC8DE2
+    %YADCX-F-CRCERR, payload CRC-32 mismatch: recorded C5EC8DE2, computed 4C025430 -- the kit is damaged, nothing written
+    $ SHOW SYMBOL $STATUS
+      $STATUS == "%X1C4C805C"
+    $ DIRECTORY SRC.BCK
+    %DIRECT-W-NOFILES, no files found
+    $ RUN SHORT.EXE
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 12:47:54.78 by yaDCX X-01-00ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is C5EC8DE2
+    %YADCX-F-TRUNCATED, the kit is truncated: 539 blocks expected, 439 present -- transfer it again in binary mode
+    $ RUN TEXTMODE.EXE
+    %DCL-W-ACTIMAGE, error activating image TEXTMODE.EXE
+    -CLI-E-IMGNAME, image file DQB0:[LAISHEV.YADCX.DEMO.BROKEN]TEXTMODE.EXE;1
+    -IMGACT-F-NOTNATIVE, image is not an OpenVMS Alpha image
+    $ YADCX /LIST TEXTMODE.EXE
+    %YADCX-F-NOHEADER, no yaDCX kit header in DQB0:[LAISHEV.YADCX.DEMO.BROKEN]TEXTMODE.EXE;1 -- this is the bare stub or not a yaDCX kit
+    $ !
+    $ ! --- 7. User mistakes
+    $ RUN DQB0:[LAISHEV.YADCX]YADCX_SFX.EXE
+    %YADCX-F-NOHEADER, no yaDCX kit header in DQB0:[LAISHEV.YADCX]YADCX_SFX.EXE;5 -- this is the bare stub or not a yaDCX kit
+    $ YADCX [-]NOTES.TXT /STUB=[-]SRC.EXE
+    %YADCX-F-NESTED, DQB0:[LAISHEV.YADCX.DEMO]SRC.EXE;1 already carries a kit header -- use the bare YADCX_SFX.EXE as the stub
+    $ YADCX [-]NOTES.TXT /NAME=[OTHER]X.TXT
+    %YADCX-F-BADNAME, /NAME value must be a plain name.type, without device, directory or version
+    $ YADCX NOSUCH.BCK
+    %YADCX-E-OPENIN, error opening NOSUCH.BCK as input
+    -RMS-E-FNF, file not found
+    $ YADCX [-]NOTES.TXT /OUTPUT=[.NODIR]
+    %YADCX-E-OPENOUT, error creating [.NODIR]
+    -RMS-E-DNF, directory not found
+    -SYSTEM-W-NOSUCHFILE, no such file
+
+    # ---- Linux: SRC.EXE and BAD.EXE fetched in binary mode ----
+    $ python3 tools/yadcx_check.py SRC.EXE BAD.EXE
+    SRC.EXE: header at VBN 35, 258048 bytes, recorded C5EC8DE2, computed C5EC8DE2 -> OK
+    BAD.EXE: header at VBN 35, 258048 bytes, recorded C5EC8DE2, computed 4C025430 -> DAMAGED
 
 Messages and what to do
 -----------------------
@@ -171,6 +390,9 @@ $STATUS is set after every run, so you can test it in a command procedure.
         check that the disk is ODS-2 or ODS-5
   SYSERR (E)
         a system service failed -- read the second line; tell the authors
+  DCL-W-ACTIMAGE + IMGACT-F-NOTNATIVE
+        VMS can not start the kit at all -- the kit was sent in text (ASCII)
+        mode; copy it again in binary mode
   CLI-W-CONFLICT
         bad mix of qualifiers -- /LIST goes alone; /OUTPUT does not go with
         /LIST or /VERIFY
@@ -209,7 +431,9 @@ yaDCX превращает один файл OpenVMS (обычно сейвсе�
 байтах и в блоках, 32 байта RMS-атрибутов записей (FAT) нагрузки, время
 сборки, версия сборщика, имя файла, CRC-32 нагрузки и CRC-32 самого
 заголовка. Все числа little-endian. CRC-32 -- тот же, что zlib.crc32()
-(полином EDB88320), так что кит можно проверить и на Linux (пример выше).
+(полином EDB88320), так что кит можно проверить и на Linux:
+python3 tools/yadcx_check.py MYAPP.EXE (кит забирать в двоичном режиме;
+код возврата 0 -- всё в порядке).
 
 Сборка
 ------
@@ -250,6 +474,26 @@ YADCX.EXE и YADCX_SFX.EXE держите в одном каталоге: сбо
     $ KIT /LIST                           ! показать, что внутри
     $ KIT /VERIFY                         ! проверить CRC, ничего не писать
     $ KIT /OUTPUT=[.SUB]OTHER.BCK         ! записать под другим именем
+
+Пример работы
+-------------
+
+Полный протокол реального прогона на OpenVMS Alpha V8.3 -- в разделе
+Example session выше. Строки, начинающиеся с $, это команды, остальное -- их
+вывод. @ATTR файл -- маленький демо-помощник, печатает атрибуты RMS одной строкой.
+
+Что в нём показано:
+
+1. три файла: сейвсет BACKUP (Fixed 32256), текст (Variable, CR), образ (Fixed 512);
+2. кит для каждого, один с /OUTPUT, другой с /NAME;
+3. YADCX /LIST показывает, что внутри кита;
+4. кит копируется под другим именем и запускается: сейвсет возвращается с теми же атрибутами,
+   DIFFERENCES различий не находит, BACKUP восстанавливает из него файлы;
+5. /VERIFY и /OUTPUT у кита;
+6. испорченные киты: один изменённый байт (CRCERR, ничего не записано), потерянный конец
+   (TRUNCATED), кит, переданный по FTP в текстовом режиме (VMS его даже не запускает: NOTNATIVE);
+7. типичные ошибки и их сообщения;
+8. та же проверка CRC на Linux.
 
 Сообщения и что делать
 ----------------------
@@ -300,6 +544,9 @@ YADCX.EXE и YADCX_SFX.EXE держите в одном каталоге: сбо
         строку; диск должен быть ODS-2 или ODS-5
   SYSERR (E)
         отказ системного сервиса -- смотрите вторую строку; сообщите авторам
+  DCL-W-ACTIMAGE + IMGACT-F-NOTNATIVE
+        VMS вообще не запускает кит -- кит передан в текстовом (ASCII)
+        режиме; скопируйте заново в двоичном
   CLI-W-CONFLICT
         недопустимое сочетание квалификаторов -- /LIST -- только один;
         /OUTPUT не сочетается с /LIST и /VERIFY

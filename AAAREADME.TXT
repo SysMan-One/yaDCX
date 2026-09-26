@@ -1,8 +1,8 @@
 AAAREADME.TXT -- yaDCX, self-extracting kits for OpenVMS
 
 __MODULE__  AAAREADME
-__IDENT__   X-01-01
-__REV__     01.01.00
+__IDENT__   X-01-01ECO01
+__REV__     01.01.01
 
 AUTHORS:    StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 
@@ -13,6 +13,7 @@ MODIFICATION HISTORY:
                       yadcx_check.py.
     26-SEP-2026  CLD  X-01-00ECO02: CONTRIBUTING.md, AGENTS.md, mk_aaareadme.py.
     26-SEP-2026  CLD  X-01-01: strings by descriptor (no .ASCIZ) in the code.
+    26-SEP-2026  CLD  X-01-01ECO01: IOSB from IOSBDEF.H.
 
 Made from README.md.  The text is UTF-8: the Russian part needs a UTF-8
 terminal, or read README.md on the git side.
@@ -22,7 +23,7 @@ YADCX -- SELF-EXTRACTING KITS FOR OPENVMS
 
 Русский текст -- ниже, после английского.
 
-Version X-01-01 (01.01.00). Authors: StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan).
+Version X-01-01ECO01 (01.01.01). Authors: StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan).
 
 What it is
 ----------
@@ -189,21 +190,21 @@ What it shows:
     $ @DQB0:[LAISHEV.YADCX]ATTR SRC.BCK
       SRC.BCK          rfm=FIX mrs=32256 rat=none bytes=258048
     $ @DQB0:[LAISHEV.YADCX]ATTR NOTES.TXT
-      NOTES.TXT        rfm=VAR mrs=    0 rat=CR   bytes=28364
+      NOTES.TXT        rfm=VAR mrs=    0 rat=CR   bytes=28406
     $ @DQB0:[LAISHEV.YADCX]ATTR TOOL.EXE
       TOOL.EXE         rfm=FIX mrs=  512 rat=none bytes=19456
     $ !
     $ ! --- 2. Build kits
     $ YADCX SRC.BCK
-    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX_DEMO]SRC.BCK;1, 258048 bytes (504 blocks), CRC-32 83A46F3C
+    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX_DEMO]SRC.BCK;1, 258048 bytes (504 blocks), CRC-32 702A7394
     %YADCX-S-BUILT, kit DQB0:[LAISHEV.YADCX_DEMO]SRC.EXE;1 built, 34 stub + 1 header + 504 payload blocks
     $ SHOW SYMBOL $STATUS
       $STATUS == "%X1C4C8009"
     $ YADCX NOTES.TXT /OUTPUT=[.KITS]NOTESKIT
-    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX_DEMO]NOTES.TXT;1, 28364 bytes (56 blocks), CRC-32 D1CE5660
+    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX_DEMO]NOTES.TXT;1, 28406 bytes (56 blocks), CRC-32 F7AFA9DD
     %YADCX-S-BUILT, kit DQB0:[LAISHEV.YADCX_DEMO.KITS]NOTESKIT.EXE;1 built, 34 stub + 1 header + 56 payload blocks
     $ YADCX TOOL.EXE /OUTPUT=[.KITS]TOOLKIT /NAME=NEWTOOL.EXE
-    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX_DEMO]TOOL.EXE;1, 19456 bytes (38 blocks), CRC-32 0BCF54B3
+    %YADCX-I-PAYLOAD, payload DQB0:[LAISHEV.YADCX_DEMO]TOOL.EXE;1, 19456 bytes (38 blocks), CRC-32 ED856F29
     %YADCX-S-BUILT, kit DQB0:[LAISHEV.YADCX_DEMO.KITS]TOOLKIT.EXE;1 built, 34 stub + 1 header + 38 payload blocks
     $ DIRECTORY/SIZE SRC.EXE,[.KITS]*.EXE
 
@@ -224,17 +225,17 @@ What it shows:
     $ !
     $ ! --- 3. Look into a kit without unpacking it
     $ YADCX /LIST SRC.EXE
-    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:00:25.12 by yaDCX X-01-01
-    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 83A46F3C
-    %YADCX-S-VERIFIED, payload CRC-32 83A46F3C verified, nothing written
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:07:47.80 by yaDCX X-01-01ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 702A7394
+    %YADCX-S-VERIFIED, payload CRC-32 702A7394 verified, nothing written
     $ !
     $ ! --- 4. "Another system": copy the kit under another name and run it
     $ COPY SRC.EXE [.OTHER]MYSOURCES.EXE
     $ SET DEFAULT [.OTHER]
     $ RUN MYSOURCES.EXE
-    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:00:25.12 by yaDCX X-01-01
-    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 83A46F3C
-    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX_DEMO.OTHER]SRC.BCK;1 restored, 258048 bytes, CRC-32 83A46F3C verified
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:07:47.80 by yaDCX X-01-01ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 702A7394
+    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX_DEMO.OTHER]SRC.BCK;1 restored, 258048 bytes, CRC-32 702A7394 verified
     $ SHOW SYMBOL $STATUS
       $STATUS == "%X1C4C8011"
     $ @DQB0:[LAISHEV.YADCX]ATTR SRC.BCK
@@ -251,44 +252,44 @@ What it shows:
 
     Directory DQB0:[LAISHEV.YADCX_DEMO.OTHER.FILES]
 
-    AAAREADME.TXT;6           56
+    AAAREADME.TXT;7           56
     ATTR.COM;1                 3
-    YADCX.C;7                 27
+    YADCX.C;8                 28
     YADCX.COM;4                2
     YADCX.H;5                 15
     YADCX_BUILD.COM;1          4
     YADCX_CLI.CLD;2            4
-    YADCX_COMMON.C;6          45
+    YADCX_COMMON.C;7          45
     YADCX_DEMO.COM;1          11
     YADCX_MSG.MSG;3            5
     YADCX_SFX.C;7             14
 
-    Total of 11 files, 186 blocks.
+    Total of 11 files, 187 blocks.
     $ DIFFERENCES [.FILES]YADCX.C DQB0:[LAISHEV.YADCX]YADCX.C
     Number of difference sections found: 0
     Number of difference records found: 0
 
     DIFFERENCES /IGNORE=()/MERGED=1-
-        DQB0:[LAISHEV.YADCX_DEMO.OTHER.FILES]YADCX.C;7-
-        DQB0:[LAISHEV.YADCX]YADCX.C;7
+        DQB0:[LAISHEV.YADCX_DEMO.OTHER.FILES]YADCX.C;8-
+        DQB0:[LAISHEV.YADCX]YADCX.C;8
     $ !
     $ ! --- 5. Qualifiers of a kit: /VERIFY, /OUTPUT; a name given with /NAME
     $ K := $DQB0:[LAISHEV.YADCX_DEMO.KITS]NOTESKIT.EXE;
     $ K /VERIFY
-    %YADCX-I-KITINFO, kit contains NOTES.TXT, 28364 bytes (56 blocks), built 26-SEP-2026 18:00:25.48 by yaDCX X-01-01
-    %YADCX-I-KITCRC, recorded CRC-32 of the payload is D1CE5660
-    %YADCX-S-VERIFIED, payload CRC-32 D1CE5660 verified, nothing written
+    %YADCX-I-KITINFO, kit contains NOTES.TXT, 28406 bytes (56 blocks), built 26-SEP-2026 18:07:47.95 by yaDCX X-01-01ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is F7AFA9DD
+    %YADCX-S-VERIFIED, payload CRC-32 F7AFA9DD verified, nothing written
     $ K /OUTPUT=README_COPY.TXT
-    %YADCX-I-KITINFO, kit contains NOTES.TXT, 28364 bytes (56 blocks), built 26-SEP-2026 18:00:25.48 by yaDCX X-01-01
-    %YADCX-I-KITCRC, recorded CRC-32 of the payload is D1CE5660
-    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX_DEMO.OTHER]README_COPY.TXT;1 restored, 28364 bytes, CRC-32 D1CE5660 verified
+    %YADCX-I-KITINFO, kit contains NOTES.TXT, 28406 bytes (56 blocks), built 26-SEP-2026 18:07:47.95 by yaDCX X-01-01ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is F7AFA9DD
+    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX_DEMO.OTHER]README_COPY.TXT;1 restored, 28406 bytes, CRC-32 F7AFA9DD verified
     $ K := $DQB0:[LAISHEV.YADCX_DEMO.KITS]TOOLKIT.EXE;
     $ K
-    %YADCX-I-KITINFO, kit contains NEWTOOL.EXE, 19456 bytes (38 blocks), built 26-SEP-2026 18:00:26.00 by yaDCX X-01-01
-    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 0BCF54B3
-    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX_DEMO.OTHER]NEWTOOL.EXE;1 restored, 19456 bytes, CRC-32 0BCF54B3 verified
+    %YADCX-I-KITINFO, kit contains NEWTOOL.EXE, 19456 bytes (38 blocks), built 26-SEP-2026 18:07:48.04 by yaDCX X-01-01ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is ED856F29
+    %YADCX-S-RESTORED, DQB0:[LAISHEV.YADCX_DEMO.OTHER]NEWTOOL.EXE;1 restored, 19456 bytes, CRC-32 ED856F29 verified
     $ @DQB0:[LAISHEV.YADCX]ATTR README_COPY.TXT
-      README_COPY.TXT  rfm=VAR mrs=    0 rat=CR   bytes=28364
+      README_COPY.TXT  rfm=VAR mrs=    0 rat=CR   bytes=28406
     $ @DQB0:[LAISHEV.YADCX]ATTR NEWTOOL.EXE
       NEWTOOL.EXE      rfm=FIX mrs=  512 rat=none bytes=19456
     $ DIFFERENCES [-]NOTES.TXT []README_COPY.TXT
@@ -311,9 +312,9 @@ What it shows:
     $ !        BAD.EXE: one byte of the payload changed (a record near the end)
     $ COPY [-]SRC.EXE BAD.EXE
     $ RUN BAD.EXE
-    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:00:25.12 by yaDCX X-01-01
-    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 83A46F3C
-    %YADCX-F-CRCERR, payload CRC-32 mismatch: recorded 83A46F3C, computed 3032E4D5 -- the kit is damaged, nothing written
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:07:47.80 by yaDCX X-01-01ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 702A7394
+    %YADCX-F-CRCERR, payload CRC-32 mismatch: recorded 702A7394, computed C3BCF87D -- the kit is damaged, nothing written
     $ SHOW SYMBOL $STATUS
       $STATUS == "%X1C4C805C"
     $ DIRECTORY SRC.BCK
@@ -323,8 +324,8 @@ What it shows:
     $ l_ebk = F$FILE_ATTRIBUTES("SHORT.EXE","EOF") - 99
     $ SET FILE/ATTRIBUTE=(EBK:440,FFB:0) SHORT.EXE
     $ RUN SHORT.EXE
-    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:00:25.12 by yaDCX X-01-01
-    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 83A46F3C
+    %YADCX-I-KITINFO, kit contains SRC.BCK, 258048 bytes (504 blocks), built 26-SEP-2026 18:07:47.80 by yaDCX X-01-01ECO01
+    %YADCX-I-KITCRC, recorded CRC-32 of the payload is 702A7394
     %YADCX-F-TRUNCATED, the kit is truncated: 539 blocks expected, 439 present -- transfer it again in binary mode
     $ !        TEXT.EXE: the kit turned into a text file, as a text-mode transfer does
     $ CREATE TEXT.FDL
@@ -340,7 +341,7 @@ What it shows:
     $ !
     $ ! --- 7. User mistakes
     $ RUN DQB0:[LAISHEV.YADCX]YADCX_SFX.EXE
-    %YADCX-F-NOHEADER, no yaDCX kit header in DQB0:[LAISHEV.YADCX]YADCX_SFX.EXE;7 -- this is the bare stub or not a yaDCX kit
+    %YADCX-F-NOHEADER, no yaDCX kit header in DQB0:[LAISHEV.YADCX]YADCX_SFX.EXE;8 -- this is the bare stub or not a yaDCX kit
     $ YADCX [-]NOTES.TXT /STUB=[-]SRC.EXE
     %YADCX-F-NESTED, DQB0:[LAISHEV.YADCX_DEMO]SRC.EXE;1 already carries a kit header -- use the bare YADCX_SFX.EXE as the stub
     $ YADCX [-]NOTES.TXT /NAME=[OTHER]X.TXT
@@ -359,8 +360,8 @@ What it shows:
 
     # ---- Linux: SRC.EXE and BROKEN/BAD.EXE fetched in binary mode ----
     $ python3 tools/yadcx_check.py SRC.EXE BAD.EXE
-    SRC.EXE: header at VBN 35, 258048 bytes, recorded 83A46F3C, computed 83A46F3C -> OK
-    BAD.EXE: header at VBN 35, 258048 bytes, recorded 83A46F3C, computed 3032E4D5 -> DAMAGED
+    SRC.EXE: header at VBN 35, 258048 bytes, recorded 702A7394, computed 702A7394 -> OK
+    BAD.EXE: header at VBN 35, 258048 bytes, recorded 702A7394, computed C3BCF87D -> DAMAGED
 
 A kit really sent by FTP in text (ASCII) mode gave, in another run:
 

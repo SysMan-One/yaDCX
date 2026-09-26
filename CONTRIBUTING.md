@@ -111,15 +111,15 @@ static unsigned int	s_xfer	(
 {
 unsigned int	l_sts;
 uint32_t	l_n;
-YADCX$IOSB	l_iosb;
+IOSB		l_iosb;
 
 	for ( ; a_blocks; a_blocks -= l_n, a_vbn += l_n, a_buf += l_n * YADCX$K_BLKSZ)
 		{
 		l_n = (a_blocks > YADCX$K_IOBLKS) ? YADCX$K_IOBLKS : a_blocks;
 
-		l_sts = sys$qiow(EFN$C_ENF, a_file->chan, a_func, (void *) &l_iosb, 0, 0, a_buf, l_n * YADCX$K_BLKSZ, a_vbn, 0, 0, 0);
+		l_sts = sys$qiow(EFN$C_ENF, a_file->chan, a_func, &l_iosb, 0, 0, a_buf, l_n * YADCX$K_BLKSZ, a_vbn, 0, 0, 0);
 		if ( 1 & l_sts )
-			l_sts = l_iosb.status;
+			l_sts = l_iosb.iosb$w_status;
 		if ( !(1 & l_sts) )
 			return	l_sts;
 		}
@@ -183,6 +183,9 @@ typedef struct yadcx_file_t {
 - Every new message gets a line in the **"Messages and what to do"** tables of
   README.md, in both languages.
 - `$QIO`/`$QIOW` without a real need for an event flag use `EFN$C_ENF`.
+- **System structures and constants come from the STARLET headers**, never
+  from private copies: `IOSB` from `<iosbdef.h>` (`iosb$w_status` for `$QIO`,
+  `iosb$l_getxxi_status` for `$GETxxI`), `FIBDEF`, `ILE3`, `ATR$C_*`, `SS$_*`…
 - `#define __NEW_STARLET 1` at the top of every C module; cast the ACP
   attribute list to `(__int64)` for the `p5` of `$QIOW`.
 - Use the Run-Time Library and system services (`LIB$`, `CLI$`, `SYS$`) as much
@@ -301,6 +304,9 @@ AI-агентам: прочитайте также [`AGENTS.md`](AGENTS.md).
 - Каждое новое сообщение — строка в таблицах «Сообщения и что делать» README
   на обоих языках.
 - `$QIO`/`$QIOW` без нужды в флаге события — `EFN$C_ENF`.
+- **Системные структуры и константы — только из заголовков STARLET**, никаких
+  своих копий: `IOSB` из `<iosbdef.h>` (`iosb$w_status` для `$QIO`,
+  `iosb$l_getxxi_status` для `$GETxxI`), `FIBDEF`, `ILE3`, `ATR$C_*`, `SS$_*`…
 - `#define __NEW_STARLET 1` в каждом C-модуле.
 - По максимуму использовать RTL и системные сервисы (`LIB$`, `CLI$`, `SYS$`).
 - Комментарии подробные, но по делу: у каждой рутины блок VMS

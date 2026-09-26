@@ -61,6 +61,8 @@ Behaviour
 - All output through `$PUTMSG` with codes from `YADCX_MSG.MSG` (`yadcx$putmsg`, `yadcx$putmsg_rms`);
   always pass the real underlying status; exit with `sys$exit(code | STS$M_INHIB_MSG)`.
 - `EFN$C_ENF` for `$QIO`/`$QIOW`; `#define __NEW_STARLET 1` in every C module.
+- System structures/constants only from STARLET headers, no private copies: `IOSB` from `<iosbdef.h>`
+  (`iosb$w_status` for `$QIO`, `iosb$l_getxxi_status` for `$GETxxI`), `FIBDEF`, `ILE3`, `SS$_*`, …
 - Prefer RTL/system services (`LIB$`, `CLI$`, `SYS$`) over hand-written code.
 
 Headers and versions

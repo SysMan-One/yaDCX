@@ -8,6 +8,7 @@
 #include	<fibdef.h>
 #include	<atrdef.h>
 #include	<efndef.h>
+#include	<iosbdef.h>
 #include	<jpidef.h>
 #include	<iledef.h>
 #include	<stsdef.h>
@@ -19,8 +20,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX_COMMON"
-#define	__IDENT__	"X-01-01"
-#define	__REV__		"01.01.00"
+#define	__IDENT__	"X-01-01ECO01"
+#define	__REV__		"01.01.01"
 
 /*
 **++
@@ -50,17 +51,11 @@
 **
 **	26-SEP-2026	CLD	X-01-01: all strings by descriptor, no .ASCIZ/strlen
 **				(open/create/putmsg_rms/cli_xxx/fmt_uq/self).
+**
+**	26-SEP-2026	CLD	X-01-01ECO01: IOSB from <iosbdef.h> instead of the
+**				private YADCX$IOSB and the ad hoc $GETJPIW block.
 **--
 */
-
-/*
-**  I/O status block of the $QIOW calls
-*/
-typedef struct yadcx_iosb_t {
-	uint16_t	status;
-	uint16_t	count;
-	uint32_t	devdep;
-} YADCX$IOSB;
 
 /*
 **  One item of an ACP attribute list, the list ends with a zero item
@@ -455,15 +450,15 @@ static unsigned int	s_xfer	(
 {
 unsigned int	l_sts;
 uint32_t	l_n;
-YADCX$IOSB	l_iosb;
+IOSB		l_iosb;
 
 	for ( ; a_blocks; a_blocks -= l_n, a_vbn += l_n, a_buf += l_n * YADCX$K_BLKSZ)
 		{
 		l_n = (a_blocks > YADCX$K_IOBLKS) ? YADCX$K_IOBLKS : a_blocks;
 
-		l_sts = sys$qiow(EFN$C_ENF, a_file->chan, a_func, (void *) &l_iosb, 0, 0, a_buf, l_n * YADCX$K_BLKSZ, a_vbn, 0, 0, 0);
+		l_sts = sys$qiow(EFN$C_ENF, a_file->chan, a_func, &l_iosb, 0, 0, a_buf, l_n * YADCX$K_BLKSZ, a_vbn, 0, 0, 0);
 		if ( 1 & l_sts )
-			l_sts = l_iosb.status;
+			l_sts = l_iosb.iosb$w_status;
 		if ( !(1 & l_sts) )
 			return	l_sts;
 		}
@@ -543,7 +538,7 @@ unsigned int	yadcx$get_fat	(
 unsigned int	l_sts;
 uint16_t	l_chan;
 FIBDEF		l_fib;
-YADCX$IOSB	l_iosb;
+IOSB		l_iosb;
 YADCX$ATR	l_atr[2];
 struct dsc$descriptor_s	l_dev, l_fibdsc;
 
@@ -560,9 +555,9 @@ struct dsc$descriptor_s	l_dev, l_fibdsc;
 	l_atr[1].size = l_atr[1].type = 0;
 	l_atr[1].addr = 0;
 
-	l_sts = sys$qiow(EFN$C_ENF, l_chan, IO$_ACCESS, (void *) &l_iosb, 0, 0, &l_fibdsc, 0, 0, 0, (__int64) l_atr, 0);
+	l_sts = sys$qiow(EFN$C_ENF, l_chan, IO$_ACCESS, &l_iosb, 0, 0, &l_fibdsc, 0, 0, 0, (__int64) l_atr, 0);
 	if ( 1 & l_sts )
-		l_sts = l_iosb.status;
+		l_sts = l_iosb.iosb$w_status;
 
 	sys$dassgn(l_chan);
 
@@ -596,7 +591,7 @@ unsigned int	yadcx$close	(
 {
 unsigned int	l_sts = SS$_NORMAL;
 FIBDEF		l_fib;
-YADCX$IOSB	l_iosb;
+IOSB		l_iosb;
 YADCX$ATR	l_atr[2];
 uint8_t		l_fat[YADCX$K_FATSZ];
 struct dsc$descriptor_s	l_fibdsc;
@@ -614,9 +609,9 @@ struct dsc$descriptor_s	l_fibdsc;
 		l_atr[1].size = l_atr[1].type = 0;
 		l_atr[1].addr = 0;
 
-		l_sts = sys$qiow(EFN$C_ENF, a_file->chan, IO$_DEACCESS, (void *) &l_iosb, 0, 0, &l_fibdsc, 0, 0, 0, (__int64) l_atr, 0);
+		l_sts = sys$qiow(EFN$C_ENF, a_file->chan, IO$_DEACCESS, &l_iosb, 0, 0, &l_fibdsc, 0, 0, 0, (__int64) l_atr, 0);
 		if ( 1 & l_sts )
-			l_sts = l_iosb.status;
+			l_sts = l_iosb.iosb$w_status;
 		}
 
 	sys$dassgn(a_file->chan);
@@ -987,7 +982,7 @@ unsigned int	yadcx$self	(
 unsigned int	l_sts;
 uint16_t	l_len = 0;
 ILE3		l_itm[2];
-struct { uint32_t status, spare; }	l_iosb;
+IOSB		l_iosb;
 
 	l_itm[0].ile3$w_length = a_name->dsc$w_length;
 	l_itm[0].ile3$w_code = JPI$_IMAGNAME;
@@ -995,9 +990,9 @@ struct { uint32_t status, spare; }	l_iosb;
 	l_itm[0].ile3$ps_retlen_addr = &l_len;
 	memset(&l_itm[1], 0, sizeof(ILE3));
 
-	l_sts = sys$getjpiw(EFN$C_ENF, 0, 0, l_itm, (void *) &l_iosb, 0, 0);
+	l_sts = sys$getjpiw(EFN$C_ENF, 0, 0, l_itm, &l_iosb, 0, 0);
 	if ( 1 & l_sts )
-		l_sts = l_iosb.status;
+		l_sts = l_iosb.iosb$l_getxxi_status;		/* $GETxxI: the status is a longword		*/
 
 	a_name->dsc$w_length = l_len;
 

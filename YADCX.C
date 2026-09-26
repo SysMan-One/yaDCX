@@ -11,8 +11,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX"
-#define	__IDENT__	"X-01-01"
-#define	__REV__		"01.01.00"
+#define	__IDENT__	"X-01-01ECO01"
+#define	__REV__		"01.01.01"
 
 /*
 **++
@@ -52,6 +52,9 @@
 **
 **	26-SEP-2026	CLD	X-01-01: all strings by descriptor, no .ASCIZ/strlen;
 **				/NAME checked with STR$FIND_FIRST_IN_SET.
+**
+**	26-SEP-2026	CLD	X-01-01ECO01: product version for the IOSBDEF change
+**				in YADCX_COMMON.C; no change here.
 **--
 */
 

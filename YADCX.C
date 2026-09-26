@@ -10,8 +10,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX"
-#define	__IDENT__	"X-01-00ECO01"
-#define	__REV__		"01.00.01"
+#define	__IDENT__	"X-01-00ECO02"
+#define	__REV__		"01.00.02"
 
 /*
 **++
@@ -45,6 +45,9 @@
 **
 **	26-SEP-2026	CLD	X-01-00ECO01: OPENIN/OPENOUT show the RMS STV
 **				(yadcx$putmsg_rms).
+**
+**	26-SEP-2026	CLD	X-01-00ECO02: kit release with CONTRIBUTING.md,
+**				AGENTS.md, tools/mk_aaareadme.py; no code change.
 **--
 */
 

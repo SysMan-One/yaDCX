@@ -1512,22 +1512,38 @@ YADCX$WR	l_wr;
 	l_wr.crc = 0xFFFFFFFF;
 
 	/*
-	**  NONE: the stored data are the payload
+	**  NONE: the stored data are the payload.  Whole blocks are copied, the
+	**  bytes after the end of file in the last block too, as X-01 did, so
+	**  the new file is block for block the old one; the CRC-32 covers only
+	**  the <bytes> bytes of the payload.
 	*/
 	if ( a_hdr->method == YADCX$K_METHOD_NONE )
 		{
-		for ( ; l_left; l_left -= l_len)
+		for (uint32_t l_done = 0, l_n; l_done < a_hdr->sblocks; l_done += l_n)
 			{
-			l_len = (l_left < YADCX$K_RECLEN) ? (uint32_t) l_left : YADCX$K_RECLEN;
-			if ( !(1 & (l_sts = s_rd_get(&l_rd, s_xbuf, l_len))) )
+			l_n = a_hdr->sblocks - l_done;
+			if ( l_n > YADCX$K_IOBLKS )
+				l_n = YADCX$K_IOBLKS;
+
+			if ( !(1 & (l_sts = yadcx$read(a_kit, a_vbn + 1 + l_done, s_rbuf, l_n))) )
 				return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &a_kit->rsadsc);
-			if ( !(1 & (l_sts = s_wr_put(&l_wr, s_xbuf, l_len))) )
+
+			l_len = (l_left < l_n * YADCX$K_BLKSZ) ? (uint32_t) l_left : l_n * YADCX$K_BLKSZ;
+			yadcx$crc(&l_wr.crc, s_rbuf, l_len);
+			l_left -= l_len;
+
+			if ( a_out && !(1 & (l_sts = yadcx$write(a_out, 1 + l_done, s_rbuf, l_n))) )
 				return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &a_out->rsadsc);
 			}
+
+		*a_crc = ~l_wr.crc;
+
+		return	SS$_NORMAL;
 		}
 
 	/*
-	**  DCX: the map, then the records
+	**  DCX: the map, then the records.  Only the <bytes> bytes of the
+	**  payload were compressed, the rest of the last block is zeros.
 	*/
 	else	{
 		if ( !(1 & (l_sts = lib$get_vm((int *) &l_mapsz, &l_map))) )

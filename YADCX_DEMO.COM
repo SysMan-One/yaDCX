@@ -32,7 +32,7 @@ $!	3. YADCX /LIST
 $!	4. the kit is copied under another name and run; the saveset comes
 $!	   back with its attributes, DIFFERENCES and BACKUP check it
 $!	5. /VERIFY and /OUTPUT of a kit
-$!	6. damaged kits: one byte changed (CRCERR), the end lost (TRUNCATED),
+$!	6. damaged kits: one stored byte changed (CRCERR), the end lost (TRUNCATED),
 $!	   the kit turned into a text file as a text-mode transfer does
 $!	7. user mistakes and their messages
 $!
@@ -105,7 +105,7 @@ $	DIFFERENCES [-]TOOL.EXE []NEWTOOL.EXE
 $ !
 $ ! --- 6. Damaged kits, made here from SRC.EXE
 $	SET DEFAULT [-.BROKEN]
-$ !        BAD.EXE: one byte of the payload changed (a record near the end)
+$ !        BAD.EXE: one byte of the stored data changed (a block near the end)
 $	COPY [-]SRC.EXE BAD.EXE
 $	l_ver2 = 'F$VERIFY(0)'
 $	l_n = F$FILE_ATTRIBUTES("BAD.EXE","EOF") - 5

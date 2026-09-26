@@ -16,12 +16,13 @@
 #include	<starlet.h>
 #include	<lib$routines.h>
 #include	<cli$routines.h>
+#include	<dcx$routines.h>
 
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX_COMMON"
-#define	__IDENT__	"X-01-01ECO01"
-#define	__REV__		"01.01.01"
+#define	__IDENT__	"X-02-00"
+#define	__REV__		"02.00.00"
 
 /*
 **++
@@ -54,6 +55,11 @@
 **
 **	26-SEP-2026	CLD	X-01-01ECO01: IOSB from <iosbdef.h> instead of the
 **				private YADCX$IOSB and the ad hoc $GETJPIW block.
+**
+**	26-SEP-2026	CLD	X-02-00: kit format 2 - yadcx$dcx_map(),
+**				yadcx$compress(), yadcx$expand(), yadcx$percent();
+**				find_hdr reads versions 1 and 2, check runs on the
+**				stored data.
 **--
 */
 
@@ -219,12 +225,13 @@ uint32_t	l_poly = YADCX$K_CRCPOLY;
 **
 **	Run a buffer through LIB$CRC.  The caller starts with 0xFFFFFFFF and
 **	inverts the final value, that gives the zlib/PKZIP CRC-32.  LIB$CRC
-**	takes a string descriptor, so the length is limited to 65535 bytes.
+**	takes a string descriptor (16-bit length), so longer data - a DCX map
+**	is often more than 64K - go through it in pieces of at most 65535.
 **
 **  INPUTS:
 **
 **	a_buf	-	data
-**	a_len	-	data length, <= 65535
+**	a_len	-	data length
 **
 **  INPUTS/OUTPUTS:
 **
@@ -241,11 +248,16 @@ void	yadcx$crc	(
 		uint32_t	a_len
 			)
 {
+uint32_t	l_n;
+char		*l_p = (char *) a_buf;
 struct dsc$descriptor_s	l_dsc;
 
-	$DSCINIT(l_dsc, a_buf, a_len);
-
-	*a_crc = lib$crc(s_crctab, (int *) a_crc, &l_dsc);
+	for ( ; a_len; a_len -= l_n, l_p += l_n)
+		{
+		l_n = (a_len > 65535) ? 65535 : a_len;
+		$DSCINIT(l_dsc, l_p, l_n);
+		*a_crc = lib$crc(s_crctab, (int *) a_crc, &l_dsc);
+		}
 }
 
 
@@ -776,9 +788,10 @@ uint16_t	l_len = 0;
 **
 **  RETURNS:
 **
-**	SS$_NORMAL	- found and valid
+**	SS$_NORMAL	- found and valid; a version 1 header is brought to
+**			  the version 2 form (method NONE, stored data = payload)
 **	YADCX$_NOHEADER	- no header in the file
-**	YADCX$_BADHDR, YADCX$_BADVER - found but not usable
+**	YADCX$_BADHDR, YADCX$_BADVER, YADCX$_BADMETH - found but not usable
 **	or a condition value of the read
 **--
 */
@@ -818,8 +831,21 @@ char		l_marker[YADCX$K_MARKSZ];
 			if ( ~l_crc != a_hdr->hdrcrc )
 				return	YADCX$_BADHDR;
 
-			if ( a_hdr->version != YADCX$K_VERSION || a_hdr->hdrsz != sizeof(YADCX$HDR) )
+			if ( !a_hdr->version || a_hdr->version > YADCX$K_VERSION || a_hdr->hdrsz != sizeof(YADCX$HDR) )
 				return	YADCX$_BADVER;
+
+			if ( a_hdr->version == 1 )
+				{
+				a_hdr->method = YADCX$K_METHOD_NONE;
+				a_hdr->reclen = 0;
+				a_hdr->mapbytes = 0;
+				a_hdr->sbytes = a_hdr->bytes;
+				a_hdr->sblocks = a_hdr->blocks;
+				a_hdr->scrc = a_hdr->crc;
+				}
+
+			if ( a_hdr->method > YADCX$K_METHOD_DCX )
+				return	YADCX$_BADMETH;
 
 			return	SS$_NORMAL;
 			}
@@ -833,8 +859,9 @@ char		l_marker[YADCX$K_MARKSZ];
 **++
 **  FUNCTIONAL DESCRIPTION:
 **
-**	Check that the whole payload is in the kit and compute its CRC-32 over
-**	exactly <bytes> bytes.
+**	Check that all the stored data are in the kit and compute their CRC-32
+**	over exactly <sbytes> bytes.  Nothing is expanded here: for method NONE
+**	this is the CRC of the payload itself, for DCX the one of the stream.
 **
 **  INPUTS:
 **
@@ -848,7 +875,7 @@ char		l_marker[YADCX$K_MARKSZ];
 **
 **  RETURNS:
 **
-**	SS$_NORMAL	- the CRC matches the recorded one
+**	SS$_NORMAL	- the CRC matches the recorded <scrc>
 **	YADCX$_TRUNCATED, YADCX$_CRCERR, or a condition value of the read
 **--
 */
@@ -861,18 +888,18 @@ unsigned int	yadcx$check	(
 {
 unsigned int	l_sts;
 uint32_t	l_n, l_len;
-uint64_t	l_left = a_hdr->bytes;
+uint64_t	l_left = a_hdr->sbytes;
 
 	*a_crc = 0;
 
-	if ( a_vbn + a_hdr->blocks > a_file->blocks )
+	if ( a_vbn + a_hdr->sblocks > a_file->blocks )
 		return	YADCX$_TRUNCATED;
 
 	*a_crc = 0xFFFFFFFF;
 
-	for (uint32_t l_done = 0; l_done < a_hdr->blocks; l_done += l_n)
+	for (uint32_t l_done = 0; l_done < a_hdr->sblocks; l_done += l_n)
 		{
-		l_n = a_hdr->blocks - l_done;
+		l_n = a_hdr->sblocks - l_done;
 		if ( l_n > YADCX$K_IOBLKS )
 			l_n = YADCX$K_IOBLKS;
 
@@ -886,7 +913,7 @@ uint64_t	l_left = a_hdr->bytes;
 
 	*a_crc = ~*a_crc;
 
-	return	(*a_crc == a_hdr->crc) ? SS$_NORMAL : YADCX$_CRCERR;
+	return	(*a_crc == a_hdr->scrc) ? SS$_NORMAL : YADCX$_CRCERR;
 }
 
 
@@ -930,7 +957,8 @@ $DESCRIPTOR(l_ctr, "!UQ");
 **++
 **  FUNCTIONAL DESCRIPTION:
 **
-**	Show what a kit carries: KITINFO and KITCRC.
+**	Show what a kit carries: KITINFO, KITCRC and, for a compressed one,
+**	KITDCX.
 **
 **  INPUTS:
 **
@@ -942,6 +970,7 @@ void	yadcx$show	(
 			)
 {
 uint64_t	l_bytes, l_built;
+uint32_t	l_int, l_frac;
 char		l_buf[32];
 struct dsc$descriptor_s	l_txt;
 
@@ -956,6 +985,15 @@ struct dsc$descriptor_s	l_txt;
 
 	yadcx$putmsg(YADCX$_KITINFO, 0, 6, a_hdr->namelen, a_hdr->name, &l_txt, a_hdr->blocks, &l_built, a_hdr->ident);
 	yadcx$putmsg(YADCX$_KITCRC, 0, 1, a_hdr->crc);
+
+	if ( a_hdr->method == YADCX$K_METHOD_DCX )
+		{
+		memcpy(&l_bytes, &a_hdr->sbytes, sizeof(l_bytes));
+		$DSCINIT(l_txt, l_buf, sizeof(l_buf));
+		yadcx$fmt_uq(l_bytes, &l_txt);
+		yadcx$percent(a_hdr->sbytes, a_hdr->bytes, &l_int, &l_frac);
+		yadcx$putmsg(YADCX$_KITDCX, 0, 4, &l_txt, a_hdr->sblocks, l_int, l_frac);
+		}
 }
 
 
@@ -997,4 +1035,573 @@ IOSB		l_iosb;
 	a_name->dsc$w_length = l_len;
 
 	return	l_sts;
+}
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	Part of a whole in percent with two decimals, for a "!UL.!2ZL%" of a
+**	message (no floating point in the images).
+**
+**  INPUTS:
+**
+**	a_part	-	the part
+**	a_whole	-	the whole, 0 gives 0.00
+**
+**  OUTPUTS:
+**
+**	a_int	-	integer percent
+**	a_frac	-	hundredths
+**--
+*/
+void	yadcx$percent	(
+		uint64_t	a_part,
+		uint64_t	a_whole,
+		uint32_t	*a_int,
+		uint32_t	*a_frac
+			)
+{
+uint64_t	l_p = a_whole ? a_part * 10000 / a_whole : 0;
+
+	*a_int = (uint32_t) (l_p / 100);
+	*a_frac = (uint32_t) (l_p % 100);
+}
+
+
+/*
+**  The stored data are a byte stream laid over whole blocks.  A writer
+**  collects bytes in s_wbuf and writes full buffers at consecutive VBNs; a
+**  NULL file only counts and CRCs (the sizing pass of the builder).  A
+**  reader refills s_rbuf from consecutive VBNs, never past its last block.
+*/
+typedef struct yadcx_wr_t {
+	YADCX$FILE	*file;			/* Output file, NULL - count only			*/
+	uint32_t	vbn;			/* VBN of the start of the buffer			*/
+	uint32_t	pos;			/* Bytes in the buffer					*/
+	uint32_t	crc;			/* Running CRC of the bytes put				*/
+	uint64_t	total;			/* Bytes put						*/
+} YADCX$WR;
+
+typedef struct yadcx_rd_t {
+	YADCX$FILE	*file;			/* Input file						*/
+	uint32_t	vbn;			/* Next VBN to read					*/
+	uint32_t	left;			/* Blocks not read yet					*/
+	uint32_t	pos;			/* Next byte in the buffer				*/
+	uint32_t	len;			/* Bytes in the buffer					*/
+} YADCX$RD;
+
+static char	s_wbuf[YADCX$K_IOBLKS * YADCX$K_BLKSZ];	/* Writer buffer				*/
+static char	s_rbuf[YADCX$K_IOBLKS * YADCX$K_BLKSZ];	/* Reader buffer				*/
+static char	s_cbuf[YADCX$K_OUTSZ];			/* One compressed record			*/
+static char	s_xbuf[YADCX$K_RECLEN];			/* One expanded record				*/
+
+static	$DESCRIPTOR(s_n_analyze, "DCX$ANALYZE_xxx");	/* Names for YADCX$_DCXERR			*/
+static	$DESCRIPTOR(s_n_makemap, "DCX$MAKE_MAP");
+static	$DESCRIPTOR(s_n_compress, "DCX$COMPRESS_xxx");
+static	$DESCRIPTOR(s_n_expand, "DCX$EXPAND_xxx");
+static	$DESCRIPTOR(s_n_stream, "the stored data stream");
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	Writer: put bytes, flush the rest (zero padded to the block boundary).
+**
+**  INPUTS:
+**
+**	a_wr	-	writer context
+**	a_data	-	bytes to put
+**	a_len	-	their number
+**
+**  RETURNS:
+**
+**	condition value of the write
+**--
+*/
+static unsigned int	s_wr_put	(
+		YADCX$WR	*a_wr,
+		void		*a_data,
+		uint32_t	a_len
+			)
+{
+unsigned int	l_sts;
+uint32_t	l_n;
+char		*l_p = (char *) a_data;
+
+	yadcx$crc(&a_wr->crc, l_p, a_len);
+	a_wr->total += a_len;
+
+	if ( !a_wr->file )
+		return	SS$_NORMAL;
+
+	for ( ; a_len; a_len -= l_n, l_p += l_n)
+		{
+		l_n = sizeof(s_wbuf) - a_wr->pos;
+		if ( l_n > a_len )
+			l_n = a_len;
+		memcpy(s_wbuf + a_wr->pos, l_p, l_n);
+		a_wr->pos += l_n;
+
+		if ( a_wr->pos == sizeof(s_wbuf) )
+			{
+			if ( !(1 & (l_sts = yadcx$write(a_wr->file, a_wr->vbn, s_wbuf, YADCX$K_IOBLKS))) )
+				return	l_sts;
+			a_wr->vbn += YADCX$K_IOBLKS;
+			a_wr->pos = 0;
+			}
+		}
+
+	return	SS$_NORMAL;
+}
+
+static unsigned int	s_wr_flush	(
+		YADCX$WR	*a_wr
+			)
+{
+uint32_t	l_n = (a_wr->pos + YADCX$K_BLKSZ - 1) / YADCX$K_BLKSZ;
+
+	if ( !a_wr->file || !a_wr->pos )
+		return	SS$_NORMAL;
+
+	memset(s_wbuf + a_wr->pos, 0, l_n * YADCX$K_BLKSZ - a_wr->pos);
+	a_wr->pos = 0;
+
+	return	yadcx$write(a_wr->file, a_wr->vbn, s_wbuf, l_n);
+}
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	Reader: get exactly a_len bytes from the stream.
+**
+**  INPUTS:
+**
+**	a_rd	-	reader context
+**	a_len	-	number of bytes
+**
+**  OUTPUTS:
+**
+**	a_data	-	the bytes
+**
+**  RETURNS:
+**
+**	condition value of the read, SS$_ENDOFFILE when the stored blocks end
+**--
+*/
+static unsigned int	s_rd_get	(
+		YADCX$RD	*a_rd,
+		void		*a_data,
+		uint32_t	a_len
+			)
+{
+unsigned int	l_sts;
+uint32_t	l_n;
+char		*l_p = (char *) a_data;
+
+	for ( ; a_len; a_len -= l_n, l_p += l_n)
+		{
+		if ( a_rd->pos == a_rd->len )
+			{
+			if ( !a_rd->left )
+				return	SS$_ENDOFFILE;
+			l_n = (a_rd->left > YADCX$K_IOBLKS) ? YADCX$K_IOBLKS : a_rd->left;
+			if ( !(1 & (l_sts = yadcx$read(a_rd->file, a_rd->vbn, s_rbuf, l_n))) )
+				return	l_sts;
+			a_rd->vbn += l_n;
+			a_rd->left -= l_n;
+			a_rd->pos = 0;
+			a_rd->len = l_n * YADCX$K_BLKSZ;
+			}
+
+		l_n = a_rd->len - a_rd->pos;
+		if ( l_n > a_len )
+			l_n = a_len;
+		memcpy(l_p, s_rbuf + a_rd->pos, l_n);
+		a_rd->pos += l_n;
+		}
+
+	return	SS$_NORMAL;
+}
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	Read the payload record by record, YADCX$K_RECLEN bytes (63 blocks)
+**	each, the last one shorter, into s_buf.
+**
+**  INPUTS:
+**
+**	a_pay	-	the payload, open
+**	a_rec	-	record number, 0-based
+**
+**  OUTPUTS:
+**
+**	a_dsc	-	descriptor of the record in s_buf
+**
+**  RETURNS:
+**
+**	condition value of the read
+**--
+*/
+static unsigned int	s_get_rec	(
+		YADCX$FILE	*a_pay,
+		uint32_t	a_rec,
+		struct dsc$descriptor_s	*a_dsc
+			)
+{
+uint64_t	l_off = (uint64_t) a_rec * YADCX$K_RECLEN;
+uint32_t	l_len, l_blks;
+
+	l_len = (a_pay->bytes - l_off < YADCX$K_RECLEN) ? (uint32_t) (a_pay->bytes - l_off) : YADCX$K_RECLEN;
+	l_blks = (l_len + YADCX$K_BLKSZ - 1) / YADCX$K_BLKSZ;
+
+	$DSCINIT(*a_dsc, s_buf, l_len);
+
+	return	yadcx$read(a_pay, 1 + a_rec * YADCX$K_RECBLKS, s_buf, l_blks);
+}
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	DCX analysis of the payload and the map; the CRC-32 of the payload is
+**	computed on the first pass.  DCX$MAKE_MAP asks for another pass with
+**	DCX$_AGAIN, an informational status (DCX$_NORMAL is a success one).
+**
+**  INPUTS:
+**
+**	a_pay	-	the payload, open, not empty
+**
+**  OUTPUTS:
+**
+**	a_map	-	address of the map (from LIB$GET_VM, released by the
+**			caller with LIB$FREE_VM of a_mapsz bytes)
+**	a_mapsz	-	size of the map
+**	a_crc	-	CRC-32 of the payload
+**
+**  RETURNS:
+**
+**	SS$_NORMAL or a message code already shown
+**--
+*/
+unsigned int	yadcx$dcx_map	(
+		YADCX$FILE	*a_pay,
+		void		**a_map,
+		uint32_t	*a_mapsz,
+		uint32_t	*a_crc
+			)
+{
+unsigned int	l_sts, l_ctx = 0, l_pass = 0;
+uint32_t	l_nrec = (uint32_t) ((a_pay->bytes + YADCX$K_RECLEN - 1) / YADCX$K_RECLEN);
+struct dsc$descriptor_s	l_rec;
+
+	*a_map = 0;
+	*a_mapsz = 0;
+	*a_crc = 0xFFFFFFFF;
+
+	if ( !(1 & (l_sts = dcx$analyze_init(&l_ctx))) )
+		return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_analyze);
+
+	do	{
+		l_pass++;
+
+		for (uint32_t i = 0; i < l_nrec; i++)
+			{
+			if ( !(1 & (l_sts = s_get_rec(a_pay, i, &l_rec))) )
+				{
+				dcx$analyze_done(&l_ctx);
+				return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &a_pay->rsadsc);
+				}
+			if ( l_pass == 1 )
+				yadcx$crc(a_crc, l_rec.dsc$a_pointer, l_rec.dsc$w_length);
+			if ( !(1 & (l_sts = dcx$analyze_data(&l_ctx, &l_rec))) )
+				{
+				dcx$analyze_done(&l_ctx);
+				return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_analyze);
+				}
+			}
+
+		if ( !(1 & (l_sts = dcx$make_map(&l_ctx, a_map, a_mapsz))) )
+			{
+			dcx$analyze_done(&l_ctx);
+			return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_makemap);
+			}
+		}
+	while ( $VMS_STATUS_SEVERITY(l_sts) == STS$K_INFO );
+
+	*a_crc = ~*a_crc;
+	dcx$analyze_done(&l_ctx);			/* The map is not part of the context, it stays	*/
+
+	return	SS$_NORMAL;
+}
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	Compress the payload with a DCX map into the stored data stream: the
+**	map, then per record a longword length and the compressed record, or
+**	the record as is (YADCX$M_RAW) when DCX can not make it shorter.
+**	Without a kit file nothing is written, only the size and the CRC are
+**	computed (the sizing pass: the kit is allocated exactly).
+**
+**  INPUTS:
+**
+**	a_pay	-	the payload, open
+**	a_map	-	ADDRESS of the map pointer: DCX$COMPRESS_INIT takes
+**			map_addr.ra.r, see [DCX.SRC]COMPRESS.B32
+**	a_mapsz	-	size of the map
+**	a_kit	-	the kit, or NULL for the sizing pass
+**	a_vbn	-	first VBN of the stored data in the kit
+**
+**  OUTPUTS:
+**
+**	a_sbytes -	size of the stored data
+**	a_scrc	-	CRC-32 of the stored data
+**	a_raws	-	number of records stored as is
+**
+**  RETURNS:
+**
+**	SS$_NORMAL or a message code already shown
+**--
+*/
+unsigned int	yadcx$compress	(
+		YADCX$FILE	*a_pay,
+		void		**a_map,
+		uint32_t	a_mapsz,
+		YADCX$FILE	*a_kit,
+		uint32_t	a_vbn,
+		uint64_t	*a_sbytes,
+		uint32_t	*a_scrc,
+		uint32_t	*a_raws
+			)
+{
+unsigned int	l_sts, l_ctx = 0;
+uint32_t	l_nrec = (uint32_t) ((a_pay->bytes + YADCX$K_RECLEN - 1) / YADCX$K_RECLEN), l_hdr;
+uint16_t	l_olen;
+struct dsc$descriptor_s	l_rec, l_out;
+YADCX$WR	l_wr;
+
+	memset(&l_wr, 0, sizeof(l_wr));
+	l_wr.file = a_kit;
+	l_wr.vbn = a_vbn;
+	l_wr.crc = 0xFFFFFFFF;
+	*a_raws = 0;
+
+	if ( !(1 & (l_sts = s_wr_put(&l_wr, *a_map, a_mapsz))) )
+		return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &a_kit->rsadsc);
+
+	if ( !(1 & (l_sts = dcx$compress_init(&l_ctx, a_map))) )
+		return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_compress);
+
+	for (uint32_t i = 0; i < l_nrec; i++)
+		{
+		if ( !(1 & (l_sts = s_get_rec(a_pay, i, &l_rec))) )
+			{
+			dcx$compress_done(&l_ctx);
+			return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &a_pay->rsadsc);
+			}
+
+		/*
+		**  DCX-W-TRUNC: the compressed record does not fit even twice
+		**  the size - such data (already compressed, encrypted) is
+		**  stored as is, as is a record that did not get shorter.
+		*/
+		$DSCINIT(l_out, s_cbuf, sizeof(s_cbuf));
+		l_olen = 0;
+		l_sts = dcx$compress_data(&l_ctx, &l_rec, &l_out, &l_olen);
+		if ( !(1 & l_sts) && $VMS_STATUS_SEVERITY(l_sts) != STS$K_WARNING )
+			{
+			dcx$compress_done(&l_ctx);
+			return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_compress);
+			}
+
+		if ( !(1 & l_sts) || l_olen >= l_rec.dsc$w_length )
+			{
+			l_hdr = l_rec.dsc$w_length | YADCX$M_RAW;
+			(*a_raws)++;
+			if ( 1 & (l_sts = s_wr_put(&l_wr, &l_hdr, sizeof(l_hdr))) )
+				l_sts = s_wr_put(&l_wr, l_rec.dsc$a_pointer, l_rec.dsc$w_length);
+			}
+		else	{
+			l_hdr = l_olen;
+			if ( 1 & (l_sts = s_wr_put(&l_wr, &l_hdr, sizeof(l_hdr))) )
+				l_sts = s_wr_put(&l_wr, s_cbuf, l_olen);
+			}
+
+		if ( !(1 & l_sts) )
+			{
+			dcx$compress_done(&l_ctx);
+			return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &a_kit->rsadsc);
+			}
+		}
+
+	dcx$compress_done(&l_ctx);
+
+	if ( !(1 & (l_sts = s_wr_flush(&l_wr))) )
+		return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &a_kit->rsadsc);
+
+	*a_sbytes = l_wr.total;
+	*a_scrc = ~l_wr.crc;
+
+	return	SS$_NORMAL;
+}
+
+
+/*
+**++
+**  FUNCTIONAL DESCRIPTION:
+**
+**	Bring the payload back from the stored data of a kit - copy for NONE,
+**	DCX expansion for DCX - and compute its CRC-32.  The stored data have
+**	been checked by yadcx$check() already.  Without an output file nothing
+**	is written: that is the full check of /VERIFY and YADCX/LIST.
+**
+**  INPUTS:
+**
+**	a_kit	-	the kit, open
+**	a_vbn	-	VBN of the header
+**	a_hdr	-	the header
+**	a_out	-	output file from yadcx$create(), or NULL
+**
+**  OUTPUTS:
+**
+**	a_crc	-	CRC-32 of the payload brought back, to compare with
+**			a_hdr->crc
+**
+**  RETURNS:
+**
+**	SS$_NORMAL or a message code already shown
+**--
+*/
+unsigned int	yadcx$expand	(
+		YADCX$FILE	*a_kit,
+		uint32_t	a_vbn,
+		YADCX$HDR	*a_hdr,
+		YADCX$FILE	*a_out,
+		uint32_t	*a_crc
+			)
+{
+unsigned int	l_sts, l_ctx = 0;
+uint32_t	l_hdr, l_len, l_want, l_mapsz = a_hdr->mapbytes;
+uint64_t	l_left = a_hdr->bytes;
+uint16_t	l_olen;
+char		*l_data;
+void		*l_map = 0;
+struct dsc$descriptor_s	l_in, l_out;
+YADCX$RD	l_rd;
+YADCX$WR	l_wr;
+
+	memset(&l_rd, 0, sizeof(l_rd));
+	l_rd.file = a_kit;
+	l_rd.vbn = a_vbn + 1;
+	l_rd.left = a_hdr->sblocks;
+
+	memset(&l_wr, 0, sizeof(l_wr));
+	l_wr.file = a_out;
+	l_wr.vbn = 1;
+	l_wr.crc = 0xFFFFFFFF;
+
+	/*
+	**  NONE: the stored data are the payload
+	*/
+	if ( a_hdr->method == YADCX$K_METHOD_NONE )
+		{
+		for ( ; l_left; l_left -= l_len)
+			{
+			l_len = (l_left < YADCX$K_RECLEN) ? (uint32_t) l_left : YADCX$K_RECLEN;
+			if ( !(1 & (l_sts = s_rd_get(&l_rd, s_xbuf, l_len))) )
+				return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &a_kit->rsadsc);
+			if ( !(1 & (l_sts = s_wr_put(&l_wr, s_xbuf, l_len))) )
+				return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &a_out->rsadsc);
+			}
+		}
+
+	/*
+	**  DCX: the map, then the records
+	*/
+	else	{
+		if ( !(1 & (l_sts = lib$get_vm((int *) &l_mapsz, &l_map))) )
+			return	yadcx$putmsg(YADCX$_SYSERR, l_sts, 1, &s_n_expand);
+
+		if ( !(1 & (l_sts = s_rd_get(&l_rd, l_map, l_mapsz))) )
+			{
+			lib$free_vm((int *) &l_mapsz, &l_map);
+			return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &a_kit->rsadsc);
+			}
+
+		if ( !(1 & (l_sts = dcx$expand_init(&l_ctx, &l_map))) )	/* map_addr.ra.r: &pointer	*/
+			{
+			lib$free_vm((int *) &l_mapsz, &l_map);
+			return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_expand);
+			}
+
+		for ( ; l_left; l_left -= l_len)
+			{
+			l_want = (l_left < a_hdr->reclen) ? (uint32_t) l_left : a_hdr->reclen;
+
+			if ( 1 & (l_sts = s_rd_get(&l_rd, &l_hdr, sizeof(l_hdr))) )
+				{
+				l_len = l_hdr & ~YADCX$M_RAW;
+				l_sts = (l_len > sizeof(s_cbuf)) ? SS$_BADPARAM : s_rd_get(&l_rd, s_cbuf, l_len);
+				}
+			if ( !(1 & l_sts) )
+				{
+				dcx$expand_done(&l_ctx);
+				lib$free_vm((int *) &l_mapsz, &l_map);
+				if ( l_sts == SS$_BADPARAM || l_sts == SS$_ENDOFFILE )
+					return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_stream);
+				return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &a_kit->rsadsc);
+				}
+
+			if ( l_hdr & YADCX$M_RAW )
+				l_data = s_cbuf;
+			else	{
+				$DSCINIT(l_in, s_cbuf, l_len);
+				$DSCINIT(l_out, s_xbuf, sizeof(s_xbuf));
+				l_olen = 0;
+				if ( !(1 & (l_sts = dcx$expand_data(&l_ctx, &l_in, &l_out, &l_olen))) )
+					{
+					dcx$expand_done(&l_ctx);
+					lib$free_vm((int *) &l_mapsz, &l_map);
+					return	yadcx$putmsg(YADCX$_DCXERR, l_sts, 1, &s_n_expand);
+					}
+				l_len = l_olen;
+				l_data = s_xbuf;
+				}
+
+			if ( l_len != l_want )				/* Every record but the last is full	*/
+				{
+				dcx$expand_done(&l_ctx);
+				lib$free_vm((int *) &l_mapsz, &l_map);
+				return	yadcx$putmsg(YADCX$_DCXERR, SS$_BADPARAM, 1, &s_n_stream);
+				}
+
+			if ( !(1 & (l_sts = s_wr_put(&l_wr, l_data, l_len))) )
+				{
+				dcx$expand_done(&l_ctx);
+				lib$free_vm((int *) &l_mapsz, &l_map);
+				return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &a_out->rsadsc);
+				}
+			}
+
+		dcx$expand_done(&l_ctx);
+		lib$free_vm((int *) &l_mapsz, &l_map);
+		}
+
+	if ( !(1 & (l_sts = s_wr_flush(&l_wr))) )
+		return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &a_out->rsadsc);
+
+	*a_crc = ~l_wr.crc;
+
+	return	SS$_NORMAL;
 }

@@ -2,14 +2,15 @@
 !  YADCX_CLI.CLD -- command syntax of the yaDCX builder and of its stub
 !
 !  __MODULE__	YADCX_CLI
-!  __IDENT__	X-01-00
-!  __REV__	01.00.00
+!  __IDENT__	X-02-00
+!  __REV__	02.00.00
 !
 !  AUTHORS:	StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 !
 !  MODIFICATION HISTORY:
 !
 !	26-SEP-2026	CLD	X-01-00: initial version.
+!	26-SEP-2026	CLD	X-02-00: YADCX /COMPRESSION=NONE|DCX, default DCX.
 !
 !  Compiled with SET COMMAND/OBJECT and linked into both images; each image
 !  gets its command line with LIB$GET_FOREIGN, puts its verb in front and
@@ -21,11 +22,22 @@
 !  YADCX.  The stub's verb is SFX.
 !
 Module YADCX_CLI
-Ident "X-01-00"
+Ident "X-02-00"
+
+!
+!  /COMPRESSION=DCX (the default) or NONE
+!
+Define Type COMPRESSION_KEYWORDS
+	Keyword NONE
+	Keyword DCX, Default
 
 !
 !  YADCX saveset /OUTPUT=kit /STUB=stub /NAME=name.type	- build a kit
+!		 /COMPRESSION=DCX|NONE
 !  YADCX/LIST kit					- show and check a kit
+!
+!  COMPRESSION is present by default (DCX), so it is not in the LIST
+!  disallow: /LIST just ignores it.
 !
 Define Verb YADCX
 	Parameter P1, Label=FILE, Prompt="File", Value (Required, Type=$INFILE)
@@ -33,6 +45,7 @@ Define Verb YADCX
 	Qualifier STUB,		Nonnegatable, Value (Required, Type=$INFILE)
 	Qualifier NAME,		Nonnegatable, Value (Required)
 	Qualifier LIST,		Nonnegatable
+	Qualifier COMPRESSION,	Nonnegatable, Default, Value (Type=COMPRESSION_KEYWORDS)
 	Disallow LIST and (OUTPUT or STUB or NAME)
 
 !

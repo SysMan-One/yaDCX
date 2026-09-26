@@ -3,14 +3,16 @@ $!
 $!  YADCX_DEMO.COM -- show yaDCX at work on sample files
 $!
 $!  __MODULE__	YADCX_DEMO
-$!  __IDENT__	X-01-00ECO01
-$!  __REV__	01.00.01
+$!  __IDENT__	X-02-00
+$!  __REV__	02.00.00
 $!
 $!  AUTHORS:	StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 $!
 $!  MODIFICATION HISTORY:
 $!
 $!	26-SEP-2026	CLD	X-01-00ECO01: initial version.
+$!	26-SEP-2026	CLD	X-02-00: DCX compression (the default) next to
+$!				/COMPRESSION=NONE.
 $!
 $!  Usage:	$ @dev:[dir]YADCX_DEMO [work-directory]
 $!		$ @dev:[dir]YADCX_DEMO /OUTPUT=DEMO.LOG	- keep a protocol
@@ -24,7 +26,8 @@ $!  The steps, all with SET VERIFY on, so the commands show with their output:
 $!
 $!	1. sample files: a BACKUP saveset of the yaDCX sources (Fixed 32256),
 $!	   a text file (Variable, CR), an image (Fixed 512)
-$!	2. a kit of each, with /OUTPUT and /NAME
+$!	2. a kit of each (DCX-compressed by default), with /OUTPUT and /NAME;
+$!	   the saveset once more with /COMPRESSION=NONE to compare the sizes
 $!	3. YADCX /LIST
 $!	4. the kit is copied under another name and run; the saveset comes
 $!	   back with its attributes, DIFFERENCES and BACKUP check it
@@ -72,7 +75,8 @@ $	YADCX SRC.BCK
 $	SHOW SYMBOL $STATUS
 $	YADCX NOTES.TXT /OUTPUT=[.KITS]NOTESKIT
 $	YADCX TOOL.EXE /OUTPUT=[.KITS]TOOLKIT /NAME=NEWTOOL.EXE
-$	DIRECTORY/SIZE SRC.EXE,[.KITS]*.EXE
+$	YADCX SRC.BCK /OUTPUT=[.KITS]SRCNONE /COMPRESSION=NONE
+$	DIRECTORY/SIZE SRC.BCK,SRC.EXE,[.KITS]*.EXE
 $ !
 $ ! --- 3. Look into a kit without unpacking it
 $	YADCX /LIST SRC.EXE

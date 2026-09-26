@@ -16,8 +16,8 @@ exact RMS attributes. Kit layout and header: `YADCX.H`. User docs: `README.md`.
 |---|---|
 | `YADCX.C` | builder, **head module** — its `__IDENT__` is the product version |
 | `YADCX_SFX.C` | the stub |
-| `YADCX_COMMON.C` | shared: `$PUTMSG`, CRC, RMS/`$QIO` block I/O, FAT, CLI, header scan |
-| `YADCX.H` | kit format, `YADCX$HDR`, `YADCX$FILE`, message codes, prototypes |
+| `YADCX_COMMON.C` | shared: `$PUTMSG`, CRC, RMS/`$QIO` block I/O, FAT, CLI, header scan, DCX map/compress/expand |
+| `YADCX.H` | kit format (version 2: method NONE/DCX, stored data size/CRC), `YADCX$HDR`, `YADCX$FILE`, message codes, prototypes |
 | `YADCX_MSG.MSG`, `YADCX_CLI.CLD` | messages; command syntax (verbs `YADCX`, `SFX`) |
 | `YADCX_BUILD.COM`, `YADCX.COM` | build; define the command |
 | `YADCX_DEMO.COM`, `ATTR.COM` | end-to-end demo / test; attribute helper |
@@ -88,6 +88,10 @@ Documentation
 5. FAT: HIBLK/EFBLK are longwords stored high word first (`yadcx$fat_get/put`); FFBYTE is a plain word.
 6. DCL: records > 255 bytes need `WRITE/SYMBOL`; `DIFFERENCES a b` inherits `a`'s directory for `b`.
 7. DCL has no command separator: driving VMS over `ssh host "cmd"` runs one command per call — put sequences into a `.COM` file.
+8. `DCX$COMPRESS_INIT`/`DCX$EXPAND_INIT` take `&map_pointer` (map_addr.ra.r) despite `void *map` in
+   `dcx$routines.h` - the pointer itself gives DCX-E-INVMAP. DCX$_AGAIN is -I-, DCX$_NORMAL -S-.
+   Compressed output can exceed the input (2x buffer, store raw on DCX-W-TRUNC); `out_len` is a word.
+9. `LIB$CRC` has a 16-bit length: `yadcx$crc()` chunks at 65535 (DCX maps are often longer).
 
 ## How to report
 

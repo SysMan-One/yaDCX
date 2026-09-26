@@ -207,6 +207,18 @@ typedef struct yadcx_file_t {
   `yadcx$marker()`, otherwise the stub would find its own string.
 - **FFBYTE in the FAT is a word**, stored normally; HIBLK and EFBLK are
   longwords stored high word first (`yadcx$fat_get/put`).
+- **DCX map by reference**: `DCX$COMPRESS_INIT`/`DCX$EXPAND_INIT` take the
+  *address of the longword holding the map address* (`map_addr.ra.r`), though
+  `dcx$routines.h` says `void *map`; passing the map pointer gives
+  `DCX-E-INVMAP`. `DCX$_NORMAL` is -S-, `DCX$_AGAIN` is -I-: repeat the analysis
+  only on an informational status. A compressed record can be longer than the
+  input — give `DCX$COMPRESS_DATA` twice the record (≤ 65535) and store the
+  record as is on `DCX-W-TRUNC`. `out_len` is a word. The ground truth is the
+  VMS source listing of DCX (`[DCX.SRC]*.B32`).
+- **`LIB$CRC` takes a 16-bit descriptor**: `yadcx$crc()` feeds it pieces of at
+  most 65535 bytes — a DCX map is often longer than that.
+- **DCX records are 63 blocks (32256 bytes)**: a record is read with one
+  `$QIO`, and it is the BACKUP block size.
 - **DCL**: `WRITE` of a record longer than 255 bytes needs `/SYMBOL`;
   `DIFFERENCES a b` takes the directory of `a` for `b` — write `[]b`.
 
@@ -322,6 +334,16 @@ AI-агентам: прочитайте также [`AGENTS.md`](AGENTS.md).
 - Маркер заголовка **никогда не литерал** — его строит `yadcx$marker()`.
 - В FAT **FFBYTE — слово** в обычном порядке; HIBLK и EFBLK — longword,
   старшее слово первым.
+- **Карта DCX по ссылке**: `DCX$COMPRESS_INIT`/`DCX$EXPAND_INIT` принимают
+  *адрес longword с адресом карты* (`map_addr.ra.r`), хотя в `dcx$routines.h`
+  написано `void *map`; сам указатель даёт `DCX-E-INVMAP`. `DCX$_NORMAL` — -S-,
+  `DCX$_AGAIN` — -I-: повторять анализ только на информационном статусе.
+  Сжатая запись бывает длиннее исходной — буфер вдвое больше записи (≤ 65535),
+  на `DCX-W-TRUNC` запись хранится как есть. `out_len` — word.
+- **`LIB$CRC` берёт 16-битный дескриптор**: `yadcx$crc()` подаёт куски не
+  длиннее 65535 байт — карта DCX часто длиннее.
+- **Записи DCX — 63 блока (32256 байт)**: читаются одним `$QIO`, это размер
+  блока BACKUP.
 - DCL: `WRITE` записи длиннее 255 байт — с `/SYMBOL`; `DIFFERENCES a b` берёт
   каталог `a` для `b` — пишите `[]b`.
 

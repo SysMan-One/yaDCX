@@ -10,8 +10,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX_SFX"
-#define	__IDENT__	"X-01-01"
-#define	__REV__		"01.01.00"
+#define	__IDENT__	"X-02-00"
+#define	__REV__		"02.00.00"
 
 /*
 **++
@@ -54,10 +54,11 @@
 **
 **	26-SEP-2026	CLD	X-01-01: all strings by descriptor, no .ASCIZ/strlen;
 **				the stored name is used in place as the default.
+**
+**	26-SEP-2026	CLD	X-02-00: kit format 2 - restore and /VERIFY through
+**				yadcx$expand() (NONE and DCX), EXPCRC, BADMETH.
 **--
 */
-
-static char	s_buf[YADCX$K_IOBLKS * YADCX$K_BLKSZ];	/* Payload copy buffer				*/
 
 static	$DESCRIPTOR(s_q_verb, "SFX");			/* Verb in YADCX_CLI.CLD			*/
 static	$DESCRIPTOR(s_q_list, "LIST");
@@ -70,8 +71,10 @@ static	$DESCRIPTOR(s_jpi, "$GETJPIW JPI$_IMAGNAME");
 **++
 **  FUNCTIONAL DESCRIPTION:
 **
-**	Write the payload out of the kit to a new file and put its original
-**	record attributes on it.  The CRC has been checked already.
+**	Write the payload out of the kit to a new file - copied or expanded -
+**	and put its original record attributes on it.  The CRC-32 of the
+**	stored data has been checked already; the one of the payload is
+**	checked here, a mismatch deletes the new file (YADCX$_EXPCRC).
 **
 **  INPUTS:
 **
@@ -95,7 +98,7 @@ static unsigned int	s_restore	(
 			)
 {
 unsigned int	l_sts;
-uint32_t	l_n;
+uint32_t	l_crc;
 uint64_t	l_bytes;
 char		l_buf[32];
 struct dsc$descriptor_s	l_defname, l_txt;
@@ -110,23 +113,20 @@ YADCX$FILE	l_out;
 	if ( !(1 & l_sts) )
 		return	yadcx$putmsg_rms(YADCX$_OPENOUT, &l_out, a_out->dsc$w_length ? a_out : &l_defname);
 
-	for (uint32_t l_done = 0; l_done < a_hdr->blocks; l_done += l_n)
+	/*
+	**  Copy (NONE) or expand (DCX) into the new file; the CRC-32 of what was
+	**  written must be the one of the original payload, else the file goes.
+	*/
+	if ( !(1 & (l_sts = yadcx$expand(a_kit, a_vbn, a_hdr, &l_out, &l_crc))) )
 		{
-		l_n = a_hdr->blocks - l_done;
-		if ( l_n > YADCX$K_IOBLKS )
-			l_n = YADCX$K_IOBLKS;
+		yadcx$abort(&l_out);
+		return	l_sts;
+		}
 
-		if ( !(1 & (l_sts = yadcx$read(a_kit, a_vbn + 1 + l_done, s_buf, l_n))) )
-			{
-			yadcx$abort(&l_out);
-			return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &a_kit->rsadsc);
-			}
-
-		if ( !(1 & (l_sts = yadcx$write(&l_out, 1 + l_done, s_buf, l_n))) )
-			{
-			yadcx$abort(&l_out);
-			return	yadcx$putmsg(YADCX$_WRITEERR, l_sts, 1, &l_out.rsadsc);
-			}
+	if ( l_crc != a_hdr->crc )
+		{
+		yadcx$abort(&l_out);
+		return	yadcx$putmsg(YADCX$_EXPCRC, 0, 2, a_hdr->crc, l_crc);
 		}
 
 	if ( !(1 & (l_sts = yadcx$close(&l_out, a_hdr->fat))) )
@@ -139,7 +139,7 @@ YADCX$FILE	l_out;
 	$DSCINIT(l_txt, l_buf, sizeof(l_buf));
 	yadcx$fmt_uq(l_bytes, &l_txt);
 
-	return	yadcx$putmsg(YADCX$_RESTORED, 0, 3, &l_out.rsadsc, &l_txt, a_hdr->crc);
+	return	yadcx$putmsg(YADCX$_RESTORED, 0, 3, &l_out.rsadsc, &l_txt, l_crc);
 }
 
 
@@ -201,6 +201,8 @@ YADCX$HDR	l_hdr;
 	l_sts = yadcx$find_hdr(&l_kit, &l_vbn, &l_hdr);
 	if ( l_sts == YADCX$_BADVER )
 		sys$exit(yadcx$putmsg(l_sts, 0, 2, l_hdr.version, YADCX$K_VERSION) | STS$M_INHIB_MSG);
+	if ( l_sts == YADCX$_BADMETH )
+		sys$exit(yadcx$putmsg(l_sts, 0, 1, l_hdr.method) | STS$M_INHIB_MSG);
 	if ( l_sts == YADCX$_NOHEADER || l_sts == YADCX$_BADHDR )
 		sys$exit(yadcx$putmsg(l_sts, 0, 1, &l_kit.rsadsc) | STS$M_INHIB_MSG);
 	if ( !(1 & l_sts) )
@@ -212,18 +214,31 @@ YADCX$HDR	l_hdr;
 		sys$exit(YADCX$_KITINFO | STS$M_INHIB_MSG);
 
 	/*
-	**  The payload: all blocks present, CRC-32 right - before anything is written
+	**  The stored data: all blocks present, CRC-32 right - before anything is written
 	*/
 	l_sts = yadcx$check(&l_kit, l_vbn, &l_hdr, &l_crc);
 	if ( l_sts == YADCX$_TRUNCATED )
-		sys$exit(yadcx$putmsg(l_sts, 0, 2, l_vbn + l_hdr.blocks, l_kit.blocks) | STS$M_INHIB_MSG);
+		sys$exit(yadcx$putmsg(l_sts, 0, 2, l_vbn + l_hdr.sblocks, l_kit.blocks) | STS$M_INHIB_MSG);
 	if ( l_sts == YADCX$_CRCERR )
-		sys$exit(yadcx$putmsg(l_sts, 0, 2, l_hdr.crc, l_crc) | STS$M_INHIB_MSG);
+		sys$exit(yadcx$putmsg(l_sts, 0, 2, l_hdr.scrc, l_crc) | STS$M_INHIB_MSG);
 	if ( !(1 & l_sts) )
 		sys$exit(yadcx$putmsg(YADCX$_READERR, l_sts, 1, &l_kit.rsadsc) | STS$M_INHIB_MSG);
 
+	/*
+	**  /VERIFY: a compressed payload is expanded in memory and its own
+	**  CRC-32 checked, so VERIFIED means the payload would come back intact
+	*/
 	if ( l_verify )
+		{
+		if ( l_hdr.method != YADCX$K_METHOD_NONE )
+			{
+			if ( !(1 & (l_sts = yadcx$expand(&l_kit, l_vbn, &l_hdr, 0, &l_crc))) )
+				sys$exit(l_sts | STS$M_INHIB_MSG);
+			if ( l_crc != l_hdr.crc )
+				sys$exit(yadcx$putmsg(YADCX$_EXPCRC, 0, 2, l_hdr.crc, l_crc) | STS$M_INHIB_MSG);
+			}
 		sys$exit(yadcx$putmsg(YADCX$_VERIFIED, 0, 1, l_crc) | STS$M_INHIB_MSG);
+		}
 
 	l_sts = s_restore(&l_kit, l_vbn, &l_hdr, &l_out);
 	yadcx$close(&l_kit, 0);

@@ -7,12 +7,13 @@
 #include	<ssdef.h>
 #include	<starlet.h>
 #include	<str$routines.h>
+#include	<lib$routines.h>
 
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX"
-#define	__IDENT__	"X-01-01ECO01"
-#define	__REV__		"01.01.01"
+#define	__IDENT__	"X-02-00"
+#define	__REV__		"02.00.00"
 
 /*
 **++
@@ -55,6 +56,11 @@
 **
 **	26-SEP-2026	CLD	X-01-01ECO01: product version for the IOSBDEF change
 **				in YADCX_COMMON.C; no change here.
+**
+**	26-SEP-2026	CLD	X-02-00: /COMPRESSION=DCX (default) or NONE, kit
+**				format 2, exact allocation by a sizing pass, NONE
+**				when DCX gives no gain; /LIST expands and checks the
+**				original CRC.
 **--
 */
 
@@ -66,10 +72,12 @@ static	$DESCRIPTOR(s_q_list, "LIST");
 static	$DESCRIPTOR(s_q_output, "OUTPUT");
 static	$DESCRIPTOR(s_q_stub, "STUB");
 static	$DESCRIPTOR(s_q_name, "NAME");
+static	$DESCRIPTOR(s_q_cnone, "COMPRESSION.NONE");
 static	$DESCRIPTOR(s_sfxname, "YADCX_SFX.EXE");		/* The stub, default name			*/
 static	$DESCRIPTOR(s_exe, ".EXE");
 static	$DESCRIPTOR(s_badchars, ":[]<>;");		/* Not allowed in /NAME				*/
 static	$DESCRIPTOR(s_jpi, "$GETJPIW JPI$_IMAGNAME");
+static	$DESCRIPTOR(s_n_passes, "the two compression passes (sizes differ)");
 
 
 /*
@@ -97,6 +105,8 @@ static unsigned int	s_hdr_err	(
 {
 	if ( a_sts == YADCX$_BADVER )
 		return	yadcx$putmsg(a_sts, 0, 2, a_hdr->version, YADCX$K_VERSION);
+	if ( a_sts == YADCX$_BADMETH )
+		return	yadcx$putmsg(a_sts, 0, 1, a_hdr->method);
 	if ( a_sts == YADCX$_NOHEADER || a_sts == YADCX$_BADHDR )
 		return	yadcx$putmsg(a_sts, 0, 1, &a_file->rsadsc);
 
@@ -108,7 +118,10 @@ static unsigned int	s_hdr_err	(
 **++
 **  FUNCTIONAL DESCRIPTION:
 **
-**	YADCX/LIST: show what a kit carries and check its payload CRC-32.
+**	YADCX/LIST: show what a kit carries and check it: the CRC-32 of the
+**	stored data, then, for a compressed kit, the payload is expanded in
+**	memory and its own CRC-32 checked - VERIFIED means the same here and
+**	in the stub's /VERIFY: the original payload would come back intact.
 **
 **  INPUTS:
 **
@@ -140,14 +153,20 @@ YADCX$HDR	l_hdr;
 	yadcx$show(&l_hdr);
 
 	l_sts = yadcx$check(&l_kit, l_vbn, &l_hdr, &l_crc);
-	yadcx$close(&l_kit, 0);
 
 	if ( l_sts == YADCX$_TRUNCATED )
-		return	yadcx$putmsg(l_sts, 0, 2, l_vbn + l_hdr.blocks, l_kit.blocks);
-	if ( l_sts == YADCX$_CRCERR )
-		return	yadcx$putmsg(l_sts, 0, 2, l_hdr.crc, l_crc);
+		l_sts = yadcx$putmsg(l_sts, 0, 2, l_vbn + l_hdr.sblocks, l_kit.blocks);
+	else if ( l_sts == YADCX$_CRCERR )
+		l_sts = yadcx$putmsg(l_sts, 0, 2, l_hdr.scrc, l_crc);
+	else if ( !(1 & l_sts) )
+		l_sts = yadcx$putmsg(YADCX$_READERR, l_sts, 1, &l_kit.rsadsc);
+	else if ( l_hdr.method != YADCX$K_METHOD_NONE && (1 & (l_sts = yadcx$expand(&l_kit, l_vbn, &l_hdr, 0, &l_crc))) && l_crc != l_hdr.crc )
+		l_sts = yadcx$putmsg(YADCX$_EXPCRC, 0, 2, l_hdr.crc, l_crc);
+
+	yadcx$close(&l_kit, 0);
+
 	if ( !(1 & l_sts) )
-		return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &l_kit.rsadsc);
+		return	l_sts;
 
 	return	yadcx$putmsg(YADCX$_VERIFIED, 0, 1, l_crc);
 }
@@ -265,6 +284,8 @@ uint32_t	l_n, l_len;
 **	a_stub	-	/STUB value, descriptor, empty - YADCX_SFX.EXE from the
 **			builder image's directory
 **	a_name	-	/NAME value, descriptor, empty - the payload's name.type
+**	a_method -	YADCX$K_METHOD_DCX or _NONE (/COMPRESSION); DCX falls
+**			back to NONE when it does not make the payload smaller
 **
 **  RETURNS:
 **
@@ -275,12 +296,15 @@ static unsigned int	s_build	(
 		struct dsc$descriptor_s	*a_payload,
 		struct dsc$descriptor_s	*a_output,
 		struct dsc$descriptor_s	*a_stub,
-		struct dsc$descriptor_s	*a_name
+		struct dsc$descriptor_s	*a_name,
+		int		a_method
 			)
 {
 unsigned int	l_sts;
-int		l_len, l_rd;
-uint32_t	l_vbn, l_crc, l_s, l_p;
+int		l_len, l_rd, l_nogain = 0;
+uint32_t	l_vbn, l_crc, l_s, l_p, l_d, l_mapsz = 0, l_scrc = 0, l_raws = 0, l_int, l_frac;
+uint64_t	l_sbytes = 0, l_sbytes2 = 0;
+void		*l_map = 0;
 uint8_t		l_pfat[YADCX$K_FATSZ], l_sfat[YADCX$K_FATSZ];
 char		l_selfbuf[NAM$C_MAXRSS], l_dnabuf[NAM$C_MAXRSS], l_txtbuf[32], *l_semi;
 struct dsc$descriptor_s	l_self, l_dna, l_txt;
@@ -337,7 +361,7 @@ YADCX$HDR	l_hdr, l_shdr;
 		return	yadcx$putmsg_rms(YADCX$_OPENIN, &l_stub, a_stub->dsc$w_length ? a_stub : &s_sfxname);
 
 	l_sts = yadcx$find_hdr(&l_stub, &l_vbn, &l_shdr);
-	if ( 1 & l_sts || l_sts == YADCX$_BADHDR || l_sts == YADCX$_BADVER )
+	if ( 1 & l_sts || l_sts == YADCX$_BADHDR || l_sts == YADCX$_BADVER || l_sts == YADCX$_BADMETH )
 		return	yadcx$putmsg(YADCX$_NESTED, 0, 1, &l_stub.rsadsc);
 	if ( l_sts != YADCX$_NOHEADER )
 		return	yadcx$putmsg(YADCX$_READERR, l_sts, 1, &l_stub.rsadsc);
@@ -348,13 +372,35 @@ YADCX$HDR	l_hdr, l_shdr;
 	l_s = l_stub.blocks;
 
 	/*
+	**  DCX: analysis, map, then a sizing pass, so the kit is allocated
+	**  exactly; if the stored data would not be smaller than the payload,
+	**  the payload is stored as is.
+	*/
+	l_d = l_p;
+	if ( a_method == YADCX$K_METHOD_DCX )
+		{
+		if ( !(1 & (l_sts = yadcx$dcx_map(&l_pay, &l_map, &l_mapsz, &l_crc))) )
+			return	l_sts;
+		if ( !(1 & (l_sts = yadcx$compress(&l_pay, &l_map, l_mapsz, 0, 0, &l_sbytes, &l_scrc, &l_raws))) )
+			return	l_sts;
+
+		if ( l_sbytes >= l_pay.bytes )
+			{
+			lib$free_vm((int *) &l_mapsz, &l_map);
+			a_method = YADCX$K_METHOD_NONE;
+			l_nogain = 1;
+			}
+		else	l_d = (uint32_t) ((l_sbytes + YADCX$K_BLKSZ - 1) / YADCX$K_BLKSZ);
+		}
+
+	/*
 	**  The kit: /OUTPUT or <payload name>.EXE in the current directory
 	*/
 	memcpy(l_dnabuf, l_pay.nam.nam$l_name, l_pay.nam.nam$b_name);
 	memcpy(l_dnabuf + l_pay.nam.nam$b_name, s_exe.dsc$a_pointer, s_exe.dsc$w_length);
 	$DSCINIT(l_dna, l_dnabuf, l_pay.nam.nam$b_name + s_exe.dsc$w_length);
 
-	if ( !(1 & (l_sts = yadcx$create(&l_kit, a_output, &l_dna, l_s + 1 + l_p))) )
+	if ( !(1 & (l_sts = yadcx$create(&l_kit, a_output, &l_dna, l_s + 1 + l_d))) )
 		return	yadcx$putmsg_rms(YADCX$_OPENOUT, &l_kit, a_output->dsc$w_length ? a_output : &l_dna);
 
 	if ( !(1 & (l_sts = s_copy(&l_stub, &l_kit, 1, 1, l_s, 0, 0, &l_rd))) )
@@ -363,11 +409,31 @@ YADCX$HDR	l_hdr, l_shdr;
 		return	yadcx$putmsg(l_rd ? YADCX$_READERR : YADCX$_WRITEERR, l_sts, 1, l_rd ? &l_stub.rsadsc : &l_kit.rsadsc);
 		}
 
-	l_crc = 0xFFFFFFFF;
-	if ( !(1 & (l_sts = s_copy(&l_pay, &l_kit, 1, l_s + 2, l_p, l_pay.bytes, &l_crc, &l_rd))) )
+	if ( a_method == YADCX$K_METHOD_DCX )
 		{
-		yadcx$abort(&l_kit);
-		return	yadcx$putmsg(l_rd ? YADCX$_READERR : YADCX$_WRITEERR, l_sts, 1, l_rd ? &l_pay.rsadsc : &l_kit.rsadsc);
+		l_sts = yadcx$compress(&l_pay, &l_map, l_mapsz, &l_kit, l_s + 2, &l_sbytes2, &l_scrc, &l_raws);
+		lib$free_vm((int *) &l_mapsz, &l_map);
+		if ( !(1 & l_sts) )
+			{
+			yadcx$abort(&l_kit);
+			return	l_sts;
+			}
+		if ( l_sbytes2 != l_sbytes )			/* The two passes must agree		*/
+			{
+			yadcx$abort(&l_kit);
+			return	yadcx$putmsg(YADCX$_DCXERR, SS$_BUGCHECK, 1, &s_n_passes);
+			}
+		}
+	else	{
+		l_crc = 0xFFFFFFFF;
+		if ( !(1 & (l_sts = s_copy(&l_pay, &l_kit, 1, l_s + 2, l_p, l_pay.bytes, &l_crc, &l_rd))) )
+			{
+			yadcx$abort(&l_kit);
+			return	yadcx$putmsg(l_rd ? YADCX$_READERR : YADCX$_WRITEERR, l_sts, 1, l_rd ? &l_pay.rsadsc : &l_kit.rsadsc);
+			}
+		l_crc = ~l_crc;
+		l_sbytes = l_pay.bytes;
+		l_scrc = l_crc;
 		}
 
 	/*
@@ -376,9 +442,15 @@ YADCX$HDR	l_hdr, l_shdr;
 	yadcx$marker(l_hdr.marker);
 	l_hdr.version = YADCX$K_VERSION;
 	l_hdr.hdrsz = sizeof(YADCX$HDR);
-	l_hdr.crc = ~l_crc;
+	l_hdr.crc = l_crc;
 	l_hdr.bytes = l_pay.bytes;
 	l_hdr.blocks = l_p;
+	l_hdr.method = (uint16_t) a_method;
+	l_hdr.reclen = (a_method == YADCX$K_METHOD_DCX) ? YADCX$K_RECLEN : 0;
+	l_hdr.mapbytes = (a_method == YADCX$K_METHOD_DCX) ? l_mapsz : 0;
+	l_hdr.sbytes = l_sbytes;
+	l_hdr.sblocks = l_d;
+	l_hdr.scrc = l_scrc;
 	memcpy(l_hdr.fat, l_pfat, YADCX$K_FATSZ);
 	sys$gettim((void *) &l_hdr.built);
 	l_hdr.ident[0] = (char) (sizeof(__IDENT__) - 1);
@@ -396,10 +468,10 @@ YADCX$HDR	l_hdr, l_shdr;
 
 	/*
 	**  Close the kit with the stub's attributes (Fixed 512), the end of
-	**  file right after the last payload block.  FFBYTE is a word, it is
+	**  file right after the last block of the stored data.  FFBYTE is a word, it is
 	**  not stored high word first like EFBLK.
 	*/
-	yadcx$fat_put(l_sfat, YADCX$K_FAT_EFBLK, l_s + 1 + l_p + 1);
+	yadcx$fat_put(l_sfat, YADCX$K_FAT_EFBLK, l_s + 1 + l_d + 1);
 	l_sfat[YADCX$K_FAT_FFBYTE] = l_sfat[YADCX$K_FAT_FFBYTE + 1] = 0;
 
 	if ( !(1 & (l_sts = yadcx$close(&l_kit, l_sfat))) )
@@ -415,7 +487,17 @@ YADCX$HDR	l_hdr, l_shdr;
 	yadcx$fmt_uq(l_pay.bytes, &l_txt);
 	yadcx$putmsg(YADCX$_PAYLOAD, 0, 4, &l_pay.rsadsc, &l_txt, l_p, l_hdr.crc);
 
-	return	yadcx$putmsg(YADCX$_BUILT, 0, 3, &l_kit.rsadsc, l_s, l_p);
+	if ( a_method == YADCX$K_METHOD_DCX )
+		{
+		$DSCINIT(l_txt, l_txtbuf, sizeof(l_txtbuf));
+		yadcx$fmt_uq(l_sbytes, &l_txt);
+		yadcx$percent(l_sbytes, l_pay.bytes, &l_int, &l_frac);
+		yadcx$putmsg(YADCX$_COMPRESSED, 0, 6, &l_txt, l_d, l_int, l_frac, l_mapsz, l_raws);
+		}
+	else if ( l_nogain )
+		yadcx$putmsg(YADCX$_NOGAIN, 0, 1, &l_pay.rsadsc);
+
+	return	yadcx$putmsg(YADCX$_BUILT, 0, 3, &l_kit.rsadsc, l_s, l_d);
 }
 
 
@@ -479,6 +561,6 @@ struct dsc$descriptor_s	l_file, l_output, l_stub, l_name;
 		yadcx$cli_value(&s_q_name, &l_name);
 		}
 
-	sys$exit(s_build(&l_file, &l_output, &l_stub, &l_name) | STS$M_INHIB_MSG);
+	sys$exit(s_build(&l_file, &l_output, &l_stub, &l_name, yadcx$cli_present(&s_q_cnone) ? YADCX$K_METHOD_NONE : YADCX$K_METHOD_DCX) | STS$M_INHIB_MSG);
 	return	SS$_NORMAL;
 }

@@ -3,8 +3,8 @@
 #  mk_aaareadme.py -- make AAAREADME.TXT (plain text for VMS) from README.md
 #
 #  __MODULE__	YADCX_MK_AAAREADME
-#  __IDENT__	X-01-01ECO01
-#  __REV__	01.01.01
+#  __IDENT__	X-02-00
+#  __REV__	02.00.00
 #
 #  AUTHORS:	StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 #
@@ -14,6 +14,7 @@
 #	26-SEP-2026	CLD	X-01-00ECO02: header of AAAREADME.TXT for ECO02.
 #	26-SEP-2026	CLD	X-01-01: header of AAAREADME.TXT for X-01-01.
 #	26-SEP-2026	CLD	X-01-01ECO01: header of AAAREADME.TXT for X-01-01ECO01.
+#	26-SEP-2026	CLD	X-02-00: header of AAAREADME.TXT for X-02-00.
 #
 #  Usage:	python3 tools/mk_aaareadme.py		(from the top directory)
 #
@@ -45,8 +46,8 @@ txt=txt.replace('—','--').replace('«','"').replace('»','"')
 hdr="""AAAREADME.TXT -- yaDCX, self-extracting kits for OpenVMS
 
 __MODULE__  AAAREADME
-__IDENT__   X-01-01ECO01
-__REV__     01.01.01
+__IDENT__   X-02-00
+__REV__     02.00.00
 
 AUTHORS:    StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 
@@ -58,6 +59,7 @@ MODIFICATION HISTORY:
     26-SEP-2026  CLD  X-01-00ECO02: CONTRIBUTING.md, AGENTS.md, mk_aaareadme.py.
     26-SEP-2026  CLD  X-01-01: strings by descriptor (no .ASCIZ) in the code.
     26-SEP-2026  CLD  X-01-01ECO01: IOSB from IOSBDEF.H.
+    26-SEP-2026  CLD  X-02-00: /COMPRESSION=DCX|NONE, kit format 2.
 
 Made from README.md.  The text is UTF-8: the Russian part needs a UTF-8
 terminal, or read README.md on the git side.

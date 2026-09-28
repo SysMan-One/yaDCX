@@ -21,8 +21,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX_COMMON"
-#define	__IDENT__	"X-02-00"
-#define	__REV__		"02.00.00"
+#define	__IDENT__	"X-02-00ECO01"
+#define	__REV__		"02.00.01"
 
 /*
 **++
@@ -60,6 +60,9 @@
 **				yadcx$compress(), yadcx$expand(), yadcx$percent();
 **				find_hdr reads versions 1 and 2, check runs on the
 **				stored data.
+**
+**	28-SEP-2026	CLD	X-02-00ECO01: the stored name on a line of its own
+**				(KITNAME, message text only) - a long name was cut.
 **--
 */
 
@@ -957,8 +960,11 @@ $DESCRIPTOR(l_ctr, "!UQ");
 **++
 **  FUNCTIONAL DESCRIPTION:
 **
-**	Show what a kit carries: KITINFO, KITCRC and, for a compressed one,
-**	KITDCX.
+**	Show what a kit carries: KITINFO, the stored name on a line of its own
+**	(KITNAME), KITCRC and, for a compressed one, KITDCX.  The name line is
+**	put as message text only (the message flags of the vector, bits 16-19
+**	of its first longword, set to text): $PUTMSG makes lines of at most 255
+**	characters, and a 255-character name leaves no room for a prefix.
 **
 **  INPUTS:
 **
@@ -970,7 +976,7 @@ void	yadcx$show	(
 			)
 {
 uint64_t	l_bytes, l_built;
-uint32_t	l_int, l_frac;
+uint32_t	l_int, l_frac, l_vec[5];
 char		l_buf[32];
 struct dsc$descriptor_s	l_txt;
 
@@ -983,7 +989,15 @@ struct dsc$descriptor_s	l_txt;
 	$DSCINIT(l_txt, l_buf, sizeof(l_buf));
 	yadcx$fmt_uq(l_bytes, &l_txt);
 
-	yadcx$putmsg(YADCX$_KITINFO, 0, 6, a_hdr->namelen, a_hdr->name, &l_txt, a_hdr->blocks, &l_built, a_hdr->ident);
+	yadcx$putmsg(YADCX$_KITINFO, 0, 4, &l_txt, a_hdr->blocks, &l_built, a_hdr->ident);
+
+	l_vec[0] = 4 | (YADCX$M_MSG_TEXT << 16);		/* Text only, no %YADCX-I-KITNAME,	*/
+	l_vec[1] = YADCX$_KITNAME;
+	l_vec[2] = 2;
+	l_vec[3] = a_hdr->namelen;
+	l_vec[4] = (uint32_t) a_hdr->name;
+	sys$putmsg((void *) l_vec, 0, 0, 0);
+
 	yadcx$putmsg(YADCX$_KITCRC, 0, 1, a_hdr->crc);
 
 	if ( a_hdr->method == YADCX$K_METHOD_DCX )

@@ -2,8 +2,8 @@
 #define	__YADCX_H__	1
 
 #define	__MODULE__	"YADCX.H"
-#define	__IDENT__	"X-02-00"
-#define	__REV__		"02.00.00"
+#define	__IDENT__	"X-02-00ECO01"
+#define	__REV__		"02.00.01"
 
 /*
 **++
@@ -66,6 +66,8 @@
 **
 **	26-SEP-2026	CLD	X-02-00: kit format version 2 - compression method
 **				(NONE/DCX), stored data size and CRC; DCX routines.
+**
+**	28-SEP-2026	CLD	X-02-00ECO01: YADCX$_KITNAME.
 **--
 */
 
@@ -85,6 +87,9 @@
 #define	YADCX$K_RECBLKS		63		/* Blocks per DCX record				*/
 #define	YADCX$K_OUTSZ		65535		/* Compressed record buffer, a record may grow		*/
 #define	YADCX$M_RAW		0x80000000	/* Record length flag: the record is stored as is	*/
+#define	YADCX$M_MSG_TEXT	1		/* $PUTMSG message flags (high word of the vector's	*/
+						/* first longword): bit 0 text, 1 ident, 2 severity,	*/
+						/* 3 facility - no STARLET C name exists for them	*/
 #define	YADCX$K_MARKSZ		16		/* Size of the header marker				*/
 #define	YADCX$K_FATSZ		32		/* Size of the FAT - ATR$S_RECATTR			*/
 #define	YADCX$K_NAMESZ		255		/* Max size of the stored file name			*/
@@ -173,7 +178,7 @@ typedef struct yadcx_file_t {
 #pragma nostandard
 globalvalue unsigned int
 	YADCX$_BUILT, YADCX$_RESTORED, YADCX$_VERIFIED,
-	YADCX$_KITINFO, YADCX$_KITCRC, YADCX$_PAYLOAD,
+	YADCX$_KITINFO, YADCX$_KITNAME, YADCX$_KITCRC, YADCX$_PAYLOAD,
 	YADCX$_NOHEADER, YADCX$_BADHDR, YADCX$_BADVER, YADCX$_TRUNCATED, YADCX$_CRCERR,
 	YADCX$_NESTED, YADCX$_BADNAME, YADCX$_EMPTY, YADCX$_BADMETH, YADCX$_EXPCRC, YADCX$_DCXERR,
 	YADCX$_COMPRESSED, YADCX$_NOGAIN, YADCX$_KITDCX,

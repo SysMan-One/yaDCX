@@ -12,8 +12,8 @@
 #include	"YADCX.H"
 
 #define	__MODULE__	"YADCX"
-#define	__IDENT__	"X-02-00"
-#define	__REV__		"02.00.00"
+#define	__IDENT__	"X-02-00ECO01"
+#define	__REV__		"02.00.01"
 
 /*
 **++
@@ -61,6 +61,9 @@
 **				format 2, exact allocation by a sizing pass, NONE
 **				when DCX gives no gain; /LIST expands and checks the
 **				original CRC.
+**
+**	28-SEP-2026	CLD	X-02-00ECO01: product version for KITNAME in
+**				YADCX_COMMON.C; no change here.
 **--
 */
 

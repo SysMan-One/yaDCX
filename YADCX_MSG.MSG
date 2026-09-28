@@ -2,8 +2,8 @@
 !  YADCX_MSG.MSG -- messages of the yaDCX kit builder and of its stub
 !
 !  __MODULE__	YADCX_MSG
-!  __IDENT__	X-02-00
-!  __REV__	02.00.00
+!  __IDENT__	X-02-00ECO01
+!  __REV__	02.00.01
 !
 !  AUTHORS:	StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)
 !
@@ -14,6 +14,12 @@
 !	26-SEP-2026	CLD	X-02-00: COMPRESSED, NOGAIN, KITDCX, BADMETH, EXPCRC,
 !				DCXERR; BUILT counts data blocks; CRCERR is about
 !				the stored data.
+!	28-SEP-2026	CLD	X-02-00ECO01: the stored name leaves KITINFO for
+!				KITNAME, a line of its own.
+!
+!  KITNAME is shown as text only (no %YADCX-I-KITNAME, prefix, see
+!  yadcx$show), so a 255-character name fits the 255-character line of
+!  $PUTMSG.
 !
 !  Strings are passed by descriptor (!AS), never as .ASCIZ.  Byte counts are
 !  passed as text too (made by yadcx$fmt_uq): the 32-bit message vector of
@@ -24,7 +30,7 @@
 !  "Messages" section of AAAREADME.TXT.
 !
 	.Title		YADCX_MSG	yaDCX messages
-	.Ident		'X-02-00'
+	.Ident		'X-02-00ECO1'
 	.Facility	YADCX,1100/Prefix=YADCX$_
 
 	.Severity	success
@@ -33,7 +39,8 @@ RESTORED	<!AS restored, !AS bytes, CRC-32 !XL verified>/FAO=3
 VERIFIED	<payload CRC-32 !XL verified, nothing written>/FAO=1
 
 	.Severity	informational
-KITINFO		<kit contains !AD, !AS bytes (!UL blocks), built !%D by yaDCX !AC>/FAO=6
+KITINFO		<kit contains !AS bytes (!UL blocks), built !%D by yaDCX !AC, stored under the name:>/FAO=4
+KITNAME		<!AD>/FAO=2
 KITCRC		<recorded CRC-32 of the payload is !XL>/FAO=1
 PAYLOAD		<payload !AS, !AS bytes (!UL blocks), CRC-32 !XL>/FAO=4
 COMPRESSED	<payload compressed by DCX to !AS bytes (!UL blocks), !UL.!2ZL% of the original; map !UL bytes, !UL record(s) stored as is>/FAO=6

@@ -109,7 +109,12 @@ Files
 Build
 -----
 
-You need HP C (tested with V7.1) on OpenVMS Alpha.
+You need HP C on OpenVMS Alpha or I64 (tested with HP C V7.1 on OpenVMS Alpha
+V8.3 and with HP C V7.3 on OpenVMS I64 V8.4). The same @YADCX_BUILD works on
+both. A kit holds the stub of the architecture it was built on, so a kit
+made on Alpha runs on Alpha only, and one made on I64 runs on I64 only (the
+other one does not start: an image activation error). Name the kits per architecture, for
+example MYAPP.EXE and MYAPP-I64.EXE.
 
     $ SET DEFAULT dev:[dir]           ! the directory with the sources
     $ @YADCX_BUILD                    ! builds YADCX.EXE and YADCX_SFX.EXE
@@ -547,7 +552,12 @@ DCX-кита распаковывается и проверяется тольк
 Сборка
 ------
 
-Нужен HP C (проверено на V7.1) на OpenVMS Alpha.
+Нужен HP C на OpenVMS Alpha или I64 (проверено: HP C V7.1 на OpenVMS Alpha
+V8.3 и HP C V7.3 на OpenVMS I64 V8.4). Один и тот же @YADCX_BUILD работает
+на обеих. В ките лежит заглушка той архитектуры, где он собран: кит с Alpha
+запускается только на Alpha, кит с I64 -- только на I64 (другая
+не запустится: ошибка активации образа). Называйте киты по архитектуре, например MYAPP.EXE и
+MYAPP-I64.EXE.
 
     $ SET DEFAULT dev:[dir]           ! каталог с исходниками
     $ @YADCX_BUILD                    ! собирает YADCX.EXE и YADCX_SFX.EXE

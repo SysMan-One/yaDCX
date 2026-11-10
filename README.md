@@ -420,6 +420,10 @@ $ RUN TEXTMODE.EXE
 
 A failed restore never leaves a half-written file: it is deleted.
 
+## License
+
+Apache License 2.0 - see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
 ---
 
 # yaDCX — самораспаковывающиеся киты для OpenVMS
@@ -575,3 +579,7 @@ $ @dev:[dir]YADCX_DEMO/OUTPUT=DEMO.LOG       ! то же, с файлом про
 | `CLI-W-CONFLICT` | недопустимое сочетание квалификаторов | `/LIST` — только один; `/OUTPUT` не сочетается с `/LIST` и `/VERIFY` |
 
 При неудачном восстановлении недописанный файл не остаётся — он удаляется.
+
+## Лицензия
+
+Apache License 2.0 — см. [LICENSE](LICENSE) и [NOTICE](NOTICE).

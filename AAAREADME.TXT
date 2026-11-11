@@ -497,6 +497,11 @@ $STATUS is set after every run, so you can test it in a command procedure.
 
 A failed restore never leaves a half-written file: it is deleted.
 
+License
+-------
+
+Apache License 2.0 - see the files LICENSE and NOTICE.
+
 ******************************************************************************
 
 YADCX -- САМОРАСПАКОВЫВАЮЩИЕСЯ КИТЫ ДЛЯ OPENVMS
@@ -699,3 +704,8 @@ YADCX_DEMO.COM показывает всё на примерах. Запусти
         /OUTPUT не сочетается с /LIST и /VERIFY
 
 При неудачном восстановлении недописанный файл не остаётся -- он удаляется.
+
+Лицензия
+--------
+
+Apache License 2.0 -- см. файлы LICENSE и NOTICE.

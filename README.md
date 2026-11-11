@@ -422,7 +422,7 @@ A failed restore never leaves a half-written file: it is deleted.
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache License 2.0 - see the files LICENSE and NOTICE.
 
 ---
 
@@ -582,4 +582,4 @@ $ @dev:[dir]YADCX_DEMO/OUTPUT=DEMO.LOG       ! то же, с файлом про
 
 ## Лицензия
 
-Apache License 2.0 — см. [LICENSE](LICENSE) и [NOTICE](NOTICE).
+Apache License 2.0 — см. файлы LICENSE и NOTICE.

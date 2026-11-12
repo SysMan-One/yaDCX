@@ -68,8 +68,11 @@ Behaviour
 Headers and versions
 - Every file has `__MODULE__`, `__IDENT__`, `__REV__`, `AUTHORS: StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)`
   and an OpenVMS `MODIFICATION HISTORY`.
-- `__IDENT__` `X-aa-bb[ECOcc]` ↔ `__REV__` `aa.bb.cc`. Bump **both** in every file you change, add a history line.
-  A bug fix bumps the ECO number.
+- `__IDENT__` `X.aa-bb[ECOcc]` (a dot after the X, ECO always two digits: `X.01-00ECO01`) ↔ `__REV__` `aa.bb.cc`.
+  Bump **both** in every file you change, add a history line. A bug fix bumps the ECO number.
+  Files not changed since 12-NOV-2026 may still carry the old form `X-aa-bb[ECOcc]`; both forms are valid,
+  a file you change takes the new one.
+- A release tag is the IDENT itself, no `v`. Tags published in the old form are not renamed.
 - Sign history lines with **your own** initials (Claude uses `CLD`). **Never use `RRL`** — it is the maintainer's.
   Never rewrite someone else's history line.
 - Archives: `yaDCX-<IDENT>.tar.gz`.

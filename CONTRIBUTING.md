@@ -61,12 +61,17 @@ the authors and an OpenVMS-style `MODIFICATION HISTORY`:
 
 ### IDENT and REV
 
-- `__IDENT__` is VMS style: `X-aa-bb`, a bug fix adds `ECOcc`: `X-01-00ECO01`.
+- `__IDENT__` is VMS style: `X.aa-bb` (a dot after the X), a bug fix adds
+  `ECOcc`, always two digits: `X.01-00ECO01`.
+- Files not changed since 12-NOV-2026 may still carry the old form
+  `X-aa-bb[ECOcc]`. Both forms are valid; a file you change takes the new one.
 - `__REV__` is the Unix form made from it: `aa.bb.cc` → `01.00.01`.
 - Bump **both** together, in every file you change, and add a history line.
 - The version of the product is the one of the head module `YADCX.C`; it is
   written into every kit header, so it must be right.
-- Archives are named `<package>-<ident>.tar.gz`: `yaDCX-X-01-00ECO01.tar.gz`.
+- Archives are named `<package>-<ident>.tar.gz`: `yaDCX-X.01-00ECO01.tar.gz`.
+- A release tag is the IDENT itself, without `v`: `X.01-00ECO01`. Tags already
+  published in the old form keep their names.
 
 ## 3. Formatting
 
@@ -269,11 +274,16 @@ AI-агентам: прочитайте также [`AGENTS.md`](AGENTS.md).
 - `AUTHORS` — всегда *StarLet Squad and Ruslan R. Laishev (AKA: BadAss SysMan)*.
 - В истории подписывайтесь **своими** тремя буквами. `RRL` — метка
   сопровождающего, её не используйте. `CLD` — изменения, сделанные Claude.
-- `__IDENT__` — стиль VMS: `X-aa-bb`, исправление ошибки добавляет `ECOcc`.
+- `__IDENT__` — стиль VMS: `X.aa-bb` (точка после X), исправление ошибки
+  добавляет `ECOcc`, всегда две цифры: `X.01-00ECO01`. Файлы, не менявшиеся
+  с 12-NOV-2026, могут ещё нести старую форму `X-aa-bb[ECOcc]`. Годятся обе;
+  изменённый файл получает новую.
   `__REV__` — Unix-форма: `aa.bb.cc`. Меняйте **оба** вместе в каждом
   изменённом файле и добавляйте строку в историю. Версия продукта — версия
   головного модуля `YADCX.C`, она пишется в заголовок каждого кита.
-- Архивы: `<пакет>-<ident>.tar.gz`, например `yaDCX-X-01-00ECO01.tar.gz`.
+- Архивы: `<пакет>-<ident>.tar.gz`, например `yaDCX-X.01-00ECO01.tar.gz`.
+- Метка релиза — сам IDENT, без `v`: `X.01-00ECO01`. Уже опубликованные метки
+  старой формы не переименовываются.
 
 ## 3. Оформление
 
